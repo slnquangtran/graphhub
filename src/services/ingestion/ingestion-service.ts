@@ -2,14 +2,17 @@ import fs from 'fs/promises';
 import path from 'path';
 import { CodeParser, SymbolDefinition } from './parser.ts';
 import { GraphClient } from '../db/graph-client.ts';
+import { EmbeddingService } from '../ai/embedding-service.ts';
 
 export class IngestionService {
   private parser: CodeParser;
   private db: GraphClient;
+  private embeddingService: EmbeddingService;
 
   constructor() {
     this.parser = new CodeParser();
     this.db = GraphClient.getInstance();
+    this.embeddingService = EmbeddingService.getInstance();
   }
 
   public async initialize(): Promise<void> {
@@ -57,6 +60,24 @@ export class IngestionService {
         'MERGE (f)-[:CONTAINS]->(s)',
         { path: absolutePath, symId }
       );
+
+      // 3. Handle Docs & Chunks for RAG
+      if (sym.doc && sym.doc.trim()) {
+        const chunkId = `chunk:${symId}`;
+        const embedding = await this.embeddingService.generateEmbedding(sym.doc);
+        
+        await this.db.runCypher(
+          'MERGE (c:Chunk {id: $id}) ' +
+          'SET c.text = $text, c.embedding = $embedding',
+          { id: chunkId, text: sym.doc, embedding }
+        );
+
+        await this.db.runCypher(
+          'MATCH (c:Chunk {id: $chunkId}), (s:Symbol {id: $symId}) ' +
+          'MERGE (c)-[:DESCRIBES]->(s)',
+          { chunkId, symId }
+        );
+      }
     }
 
     console.log(`Indexed ${filePath} with ${symbols.length} symbols.`);

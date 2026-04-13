@@ -29,10 +29,13 @@ export class GraphClient {
       await this.runCypher('CREATE NODE TABLE File(path STRING, language STRING, PRIMARY KEY (path))');
       await this.runCypher('CREATE NODE TABLE Symbol(id STRING, name STRING, type STRING, kind STRING, range STRING, calls STRING[], import_source STRING, import_specifiers STRING[], PRIMARY KEY (id))');
 
+      await this.runCypher('CREATE NODE TABLE Chunk(id STRING, text STRING, embedding FLOAT[384], PRIMARY KEY (id))');
+
       // Relationship Tables
       await this.runCypher('CREATE REL TABLE CONTAINS(FROM File TO Symbol)');
       await this.runCypher('CREATE REL TABLE CALLS(FROM Symbol TO Symbol)');
       await this.runCypher('CREATE REL TABLE IMPORTS(FROM File TO File, specifiers STRING[])');
+      await this.runCypher('CREATE REL TABLE DESCRIBES(FROM Chunk TO Symbol)');
       
       console.log('KuzuDB Schema initialized successfully.');
     } catch (error: any) {

@@ -5,13 +5,16 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { GraphClient } from "../db/graph-client.ts";
+import { RAGService } from "../ai/rag-service.ts";
 
 export class GraphHubMCPServer {
   private server: Server;
   private db: GraphClient;
+  private rag: RAGService;
 
   constructor() {
     this.db = GraphClient.getInstance();
+    this.rag = RAGService.getInstance();
     this.server = new Server(
       {
         name: "graphhub",
@@ -52,6 +55,18 @@ export class GraphHubMCPServer {
             required: ["path"],
           },
         },
+        {
+          name: "semantic_search",
+          description: "Search for code logic or functionality using natural language descriptions (RAG).",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "The description of the logic to search for" },
+              limit: { type: "number", description: "Maximum number of results to return (default 5)" },
+            },
+            required: ["query"],
+          },
+        },
       ],
     }));
 
@@ -71,6 +86,12 @@ export class GraphHubMCPServer {
               "MATCH (f:File {path: $path})-[:CONTAINS]->(s:Symbol) RETURN s.name, s.kind, s.range",
               { path: args?.path as string }
             );
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+          }
+          case "semantic_search": {
+            const result = await this.rag.search(args?.query as string, args?.limit as number);
             return {
               content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
             };

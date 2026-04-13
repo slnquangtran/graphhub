@@ -15,6 +15,7 @@ export interface SymbolDefinition {
   };
   calls?: string[];
   imports?: ImportDefinition[];
+  doc?: string;
 }
 
 export class CodeParser {
@@ -53,9 +54,18 @@ export class CodeParser {
   private extractSymbols(rootNode: Parser.SyntaxNode): SymbolDefinition[] {
     const symbols: SymbolDefinition[] = [];
     let currentSymbolsStack: SymbolDefinition[] = [];
+    let pendingComments: string[] = [];
 
     const visit = (node: Parser.SyntaxNode) => {
       let symbol: SymbolDefinition | null = null;
+
+      // Capture comments
+      if (node.type === 'comment') {
+        const text = node.text;
+        if (text.startsWith('/**') || text.startsWith('//')) {
+          pendingComments.push(text);
+        }
+      }
 
       // Basic extraction logic for TS/JS
       switch (node.type) {
@@ -74,30 +84,32 @@ export class CodeParser {
             name,
             kind,
             range: this.getRange(node),
-            calls: []
+            calls: [],
+            doc: pendingComments.join('\n')
           };
+          pendingComments = []; // Reset after assigning
           break;
         case 'class_declaration':
           symbol = {
             name: node.childForFieldName('name')?.text || 'anonymous',
             kind: 'class',
             range: this.getRange(node),
+            doc: pendingComments.join('\n')
           };
+          pendingComments = [];
           break;
         case 'interface_declaration':
           symbol = {
             name: node.childForFieldName('name')?.text || 'anonymous',
             kind: 'interface',
             range: this.getRange(node),
+            doc: pendingComments.join('\n')
           };
+          pendingComments = [];
           break;
         case 'import_specifier':
         case 'import_clause':
-          symbol = {
-            name: node.text,
-            kind: 'import',
-            range: this.getRange(node),
-          };
+          // We don't typically associate docs with individual import names
           break;
         
         // --- Call Extraction ---
