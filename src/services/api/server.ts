@@ -73,11 +73,18 @@ export class GraphHubAPIServer {
         
         // Filter by workspace if provided
         if (workspace) {
+          const normWorkspace = workspace.replace(/\\/g, '/');
           allNodes = allNodes.filter((r: any) => {
             const row = r['n'];
-            if (row._label === 'File') return row.path.startsWith(workspace);
-            if (row._label === 'Symbol') return row.id.startsWith(workspace);
-            if (row._label === 'Chunk') return row.id.startsWith(`chunk:${workspace}`);
+            if (row._label === 'File') {
+              return row.path.replace(/\\/g, '/').startsWith(normWorkspace);
+            }
+            if (row._label === 'Symbol') {
+              return row.id.replace(/\\/g, '/').startsWith(normWorkspace);
+            }
+            if (row._label === 'Chunk') {
+              return row.id.replace(/\\/g, '/').startsWith(`chunk:${normWorkspace}`);
+            }
             return false;
           });
 
