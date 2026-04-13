@@ -83,6 +83,56 @@ export class IngestionService {
     console.log(`Indexed ${filePath} with ${symbols.length} symbols.`);
   }
 
+  public async indexFileFallback(filePath: string): Promise<void> {
+    const absolutePath = path.resolve(filePath);
+    const content = await fs.readFile(absolutePath, 'utf8');
+    const ext = path.extname(filePath).slice(1);
+    
+    // 1. Add File Node
+    await this.db.runCypher(
+      'MERGE (f:File {path: $path}) ON CREATE SET f.language = $language',
+      { path: absolutePath, language: ext || 'text' }
+    );
+
+    // 2. Add a virtual Symbol representing the file context
+    const symId = `${absolutePath}:__file__`;
+    await this.db.runCypher(
+      'MERGE (s:Symbol {id: $id}) ' +
+      'ON CREATE SET s.name = $name, s.kind = $kind, s.calls = [], s.import_specifiers = []',
+      { 
+        id: symId, 
+        name: path.basename(filePath), 
+        kind: 'file_module'
+      }
+    );
+
+    await this.db.runCypher(
+      'MATCH (f:File {path: $path}), (s:Symbol {id: $symId}) MERGE (f)-[:CONTAINS]->(s)',
+      { path: absolutePath, symId }
+    );
+
+    // 3. Chunk the document roughly for RAG
+    const chunkSize = 1500;
+    for (let i = 0; i < content.length; i += chunkSize) {
+      const chunkText = content.substring(i, i + chunkSize);
+      if (!chunkText.trim()) continue;
+
+      const chunkId = `chunk:${symId}:part${i}`;
+      const embedding = await this.embeddingService.generateEmbedding(chunkText);
+      
+      await this.db.runCypher(
+        'MERGE (c:Chunk {id: $id}) SET c.text = $text, c.embedding = $embedding',
+        { id: chunkId, text: chunkText, embedding }
+      );
+
+      await this.db.runCypher(
+        'MATCH (c:Chunk {id: $chunkId}), (s:Symbol {id: $symId}) MERGE (c)-[:DESCRIBES]->(s)',
+        { chunkId, symId }
+      );
+    }
+    console.log(`Indexed generic fallback file ${filePath}.`);
+  }
+
   private async resolveImportPath(sourcePath: string, importSource: string): Promise<string | null> {
     if (!importSource.startsWith('.')) return null; // Skip non-relative for now
 
@@ -164,8 +214,13 @@ export class IngestionService {
         await this.indexDirectory(fullPath);
       } else {
         const ext = path.extname(entry.name);
-        if (['.ts', '.js', '.tsx', '.jsx'].includes(ext)) {
+        const codeExtensions = ['.ts', '.js', '.tsx', '.jsx'];
+        const fallbackExtensions = ['.py', '.java', '.c', '.cpp', '.cs', '.go', '.rs', '.rb', '.php', '.swift', '.md', '.txt', '.sh', '.ps1'];
+        
+        if (codeExtensions.includes(ext)) {
           await this.indexFile(fullPath);
+        } else if (fallbackExtensions.includes(ext.toLowerCase())) {
+          await this.indexFileFallback(fullPath);
         }
       }
     }
