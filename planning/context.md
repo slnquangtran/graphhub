@@ -1,20 +1,35 @@
 # Planning Context: GraphHub
 
-## Current Project
-GraphHub is a platform designed to manage and visualize complex graph-based data. The goal is to provide a seamless interface for creating, exploring, and sharing relational datasets with a focus on performance and visual clarity.
+## Project Summary
+GraphHub is a local-first code intelligence platform. It parses a codebase using Tree-sitter, stores the resulting symbol and call graph in KuzuDB, exposes it via a REST API and MCP server, and visualizes it in a React dashboard. The goal is to help developers and AI agents understand any codebase through an interactive knowledge graph.
+
+## Current Status (2026-04-15)
+The core engine, API, MCP server, and dashboard are functionally complete. Incremental indexing, improved Mermaid export, and the `get_context` / `impact_analysis` MCP tools are implemented. Remaining gaps are tracked in the spec files.
 
 ## What Good Looks Like
-- **Modular Specification**: Features are defined in `specs/` before implementation.
-- **Traceable Decisions**: Significant architectural choices are documented in `decisions/` using the ADR format.
-- **Architectural Integrity**: The visual and logical layers of the graph system are clearly separated as per the `architecture/` docs.
-- **Iterative Growth**: Small, verifiable chunks of work that move the project toward a scalable graph ecosystem.
+- **Spec before feature**: Non-trivial features have a corresponding file in `specs/` describing requirements and implementation status.
+- **ADR for decisions**: Significant technical trade-offs are recorded in `decisions/` in ADR format with Status (Proposed → Accepted → Superseded).
+- **Architecture stays current**: `architecture/system-overview.md` reflects the actual implemented system, not just aspirational design.
 
 ## What to Avoid
-- **Implicit Knowledge**: Avoid starting development on complex features without a corresponding spec file.
-- **Monolithic Bloat**: Don't combine data processing logic with visualization components.
-- **Stale Context**: Ensure this document and related planning docs are updated when the project pivot occurs.
+- Starting development on complex features (new language parsers, ANN search, worker threads) without updating the relevant spec first.
+- Combining visualization logic with data processing — keep `src/services/` isolated from `dashboard/`.
+- Stale planning docs — update context files when the project pivots.
 
-## Key Planning Areas
-- `/specs` — Functional requirements for graph manipulation, user auth, and sharing.
-- `/architecture` — System design, including the graph engine and rendering stack.
-- `/decisions` — Records of major technical trade-offs.
+## Planning Structure
+
+| Directory | Purpose |
+|---|---|
+| `specs/` | Functional requirements and implementation status per feature area |
+| `architecture/` | System design: data flows, component boundaries, schema |
+| `decisions/` | ADRs for major technology and design choices |
+
+## Key Open Work
+
+| Item | Priority | Spec |
+|---|---|---|
+| `.gitignore` support in crawler | Medium | `specs/core-engine_spec.md` |
+| `INHERITS` / `IMPLEMENTS` edges | Medium | `specs/core-engine_spec.md` |
+| Worker thread indexing | Low | `specs/core-engine_spec.md` |
+| Python / Go Tree-sitter grammars | Low | `specs/core-engine_spec.md` |
+| ANN vector index for large repos | Low | `specs/core-engine_spec.md` |

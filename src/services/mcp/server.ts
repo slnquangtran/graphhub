@@ -67,6 +67,28 @@ export class GraphHubMCPServer {
             required: ["query"],
           },
         },
+        {
+          name: "get_context",
+          description: "Get all callers and callees of a symbol by name. Shows the full call graph context around a function or class.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "The symbol name to look up (function, class, or method)" },
+            },
+            required: ["name"],
+          },
+        },
+        {
+          name: "impact_analysis",
+          description: "Analyze all symbols that directly call or import a given symbol. Shows what would break if the symbol changes.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "The symbol name to analyze" },
+            },
+            required: ["name"],
+          },
+        },
       ],
     }));
 
@@ -77,8 +99,9 @@ export class GraphHubMCPServer {
         switch (name) {
           case "query_graph": {
             const result = await this.db.runCypher(args?.cypher as string);
+            const rows = await result.getAll();
             return {
-              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+              content: [{ type: "text", text: JSON.stringify(rows, null, 2) }],
             };
           }
           case "get_file_symbols": {
@@ -94,6 +117,59 @@ export class GraphHubMCPServer {
             const result = await this.rag.search(args?.query as string, args?.limit as number);
             return {
               content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+          }
+          case "get_context": {
+            const symbolName = args?.name as string;
+            const calleesResult = await this.db.runCypher(
+              'MATCH (s:Symbol {name: $name})-[:CALLS]->(callee:Symbol) RETURN callee.name as name, callee.kind as kind',
+              { name: symbolName }
+            );
+            const callersResult = await this.db.runCypher(
+              'MATCH (caller:Symbol)-[:CALLS]->(s:Symbol {name: $name}) RETURN caller.name as name, caller.kind as kind',
+              { name: symbolName }
+            );
+            const fileResult = await this.db.runCypher(
+              'MATCH (f:File)-[:CONTAINS]->(s:Symbol {name: $name}) RETURN f.path as path, s.kind as kind, s.range as range',
+              { name: symbolName }
+            );
+            const callees = await calleesResult.getAll();
+            const callers = await callersResult.getAll();
+            const fileInfo = await fileResult.getAll();
+            return {
+              content: [{
+                type: "text",
+                text: JSON.stringify({ symbol: symbolName, definedIn: fileInfo, callers, callees }, null, 2)
+              }],
+            };
+          }
+          case "impact_analysis": {
+            const symbolName = args?.name as string;
+            // Depth-1 (direct callers) and depth-2 (their callers)
+            const d1Result = await this.db.runCypher(
+              'MATCH (caller:Symbol)-[:CALLS]->(s:Symbol {name: $name}) RETURN caller.name as name, caller.kind as kind',
+              { name: symbolName }
+            );
+            const d1 = await d1Result.getAll();
+            const d2 = [];
+            for (const caller of d1) {
+              const d2Result = await this.db.runCypher(
+                'MATCH (grandCaller:Symbol)-[:CALLS]->(c:Symbol {name: $name}) RETURN grandCaller.name as name, grandCaller.kind as kind',
+                { name: caller.name }
+              );
+              d2.push(...(await d2Result.getAll()));
+            }
+            const uniqueD2 = d2.filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i);
+            return {
+              content: [{
+                type: "text",
+                text: JSON.stringify({
+                  target: symbolName,
+                  risk: d1.length === 0 ? 'LOW' : d1.length <= 3 ? 'MEDIUM' : 'HIGH',
+                  direct_callers: d1,
+                  indirect_callers: uniqueD2
+                }, null, 2)
+              }],
             };
           }
           default:

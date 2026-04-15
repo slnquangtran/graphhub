@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import ReactFlow, { 
-  Background, 
-  Controls, 
+import ReactFlow, {
+  Background,
+  Controls,
   MiniMap,
   useNodesState,
   useEdgesState,
@@ -13,40 +13,25 @@ import type { Node, Edge } from 'reactflow';
 import dagre from 'dagre';
 import 'reactflow/dist/style.css';
 import '../App.css';
-import { Search, Code, FileCode, Layers, BookOpen, Home } from 'lucide-react';
+import { Search, Code, FileCode, Layers, BookOpen, Home, Lightbulb, Zap, ArrowRight, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const CustomNode = ({ data, selected }: any) => {
   return (
-    <div className={`custom-node ${data.type} ${selected ? 'selected' : ''}`} style={{
-      ...data.style,
-      background: '#252525',
-      padding: '12px',
-      borderRadius: '8px',
-      border: selected ? '2px solid var(--primary-color)' : '1px solid rgba(255, 255, 255, 0.1)',
-      color: 'white',
-      minWidth: '200px',
-      maxWidth: '350px',
-      boxShadow: selected ? '0 0 20px rgba(0, 255, 204, 0.5)' : '0 4px 15px rgba(0, 0, 0, 0.5)',
-      transition: 'all 0.2s ease'
-    }}>
+    <div className={`custom-node ${selected ? 'selected' : ''}`}>
       <Handle type="target" position={Position.Top} style={{ visibility: 'hidden' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-        <div className={`node-chip ${data.type}`}>{data.type}</div>
-        <div style={{ fontWeight: 600, fontSize: '14px', wordBreak: 'break-all' }}>{data.label}</div>
+        <span className={`node-chip ${data.type}`}>{data.type}</span>
+        <span className="node-label">{data.label}</span>
       </div>
-      {data.properties.doc && (
-        <div style={{ 
-          fontSize: '12px', 
-          color: 'var(--text-secondary)',
-          background: 'rgba(0,0,0,0.3)',
-          padding: '8px',
-          borderRadius: '4px',
-          borderLeft: '2px solid var(--primary-color)',
-          marginTop: '8px',
-          lineHeight: '1.4'
-        }}>
-          {data.properties.doc}
+      {data.properties.purpose && (
+        <div className="node-doc" style={{ borderLeftColor: '#fbbf24' }}>
+          {data.properties.purpose}
+        </div>
+      )}
+      {!data.properties.purpose && data.properties.doc && (
+        <div className="node-doc">
+          {data.properties.doc.length > 100 ? data.properties.doc.substring(0, 100) + '...' : data.properties.doc}
         </div>
       )}
       <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden' }} />
@@ -59,10 +44,10 @@ dagreGraph.setDefaultEdgeLabel(() => ({}));
 
 const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
   const isHorizontal = direction === 'LR';
-  dagreGraph.setGraph({ rankdir: direction });
+  dagreGraph.setGraph({ rankdir: direction, nodesep: 80, ranksep: 100 });
 
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: 150, height: 50 });
+    dagreGraph.setNode(node.id, { width: 240, height: 80 });
   });
 
   edges.forEach((edge) => {
@@ -77,8 +62,8 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
     node.sourcePosition = isHorizontal ? Position.Right : Position.Bottom;
 
     node.position = {
-      x: nodeWithPosition.x - 75,
-      y: nodeWithPosition.y - 25,
+      x: nodeWithPosition.x - 120,
+      y: nodeWithPosition.y - 40,
     };
 
     return node;
@@ -92,7 +77,7 @@ function Explorer() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const workspace = searchParams.get('workspace');
-  
+
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<any>(null);
@@ -105,17 +90,25 @@ function Explorer() {
       const url = workspace ? `http://localhost:9000/api/graph?workspace=${encodeURIComponent(workspace)}` : 'http://localhost:9000/api/graph';
       const res = await fetch(url);
       const data = await res.json();
-      
+
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
         data.nodes,
         data.edges.map((e: any) => ({
           ...e,
           animated: e.label === 'CALLS',
-          style: { stroke: e.label === 'IMPORTS' ? '#3b82f6' : e.label === 'CALLS' ? '#10b981' : '#f59e0b' },
-          markerEnd: { type: MarkerType.ArrowClosed, color: e.label === 'IMPORTS' ? '#3b82f6' : e.label === 'CALLS' ? '#10b981' : '#f59e0b' }
+          style: {
+            stroke: e.label === 'IMPORTS' ? '#0071e3' : e.label === 'CALLS' ? '#34d399' : '#fbbf24',
+            strokeWidth: 1.5
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: e.label === 'IMPORTS' ? '#0071e3' : e.label === 'CALLS' ? '#34d399' : '#fbbf24',
+            width: 16,
+            height: 16
+          }
         }))
       );
-      
+
       setNodes(layoutedNodes);
       setEdges(layoutedEdges);
     } catch (err) {
@@ -136,7 +129,7 @@ function Explorer() {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery) return;
-    
+
     try {
       const res = await fetch('http://localhost:9000/api/search', {
         method: 'POST',
@@ -144,15 +137,14 @@ function Explorer() {
         body: JSON.stringify({ query: searchQuery })
       });
       const results = await res.json();
-      
-      // Highlight matching nodes
+
       const highlightedIds = results.map((r: any) => r.symbolName);
       setNodes((nds) => nds.map((n) => ({
         ...n,
         style: {
           ...n.style,
-          border: highlightedIds.includes(n.label) ? '2px solid #00ffcc' : '1px solid rgba(255,170,0,0.1)',
-          boxShadow: highlightedIds.includes(n.label) ? '0 0 15px #00ffcc' : 'none'
+          border: highlightedIds.includes(n.data.label) ? '2px solid #0071e3' : undefined,
+          boxShadow: highlightedIds.includes(n.data.label) ? '0 0 0 2px #0071e3' : undefined
         }
       })));
     } catch (err) {
@@ -165,7 +157,19 @@ function Explorer() {
   return (
     <div className="dashboard-container">
       <div className="graph-canvas">
-        {loading && <div style={{position: 'absolute', top: '50%', left: '50%', color: '#00ffcc'}}>Loading Graph...</div>}
+        {loading && (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: '#0071e3',
+            fontSize: '17px',
+            fontWeight: 500
+          }}>
+            Loading Graph...
+          </div>
+        )}
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -174,34 +178,49 @@ function Explorer() {
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
           fitView
+          style={{ background: '#000000' }}
         >
-          <Background color="#1a1a1a" gap={20} />
+          <Background color="#1a1a1a" gap={32} size={1} />
           <Controls />
-          <MiniMap nodeStrokeColor="#00ffcc" nodeColor="#1a1a1a" maskColor="rgba(0,0,0,0.5)" />
+          <MiniMap
+            nodeStrokeColor="#0071e3"
+            nodeColor="#272729"
+            maskColor="rgba(0, 0, 0, 0.7)"
+          />
         </ReactFlow>
       </div>
 
       <div className="sidebar">
         <div className="header">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h1 style={{ fontSize: '20px', margin: 0 }}>
-              GraphHub Explorer {workspace && <span style={{fontSize: '12px', color: '#00ffcc', display: 'block'}}>{workspace.split(/[/\\]/).filter(Boolean).pop()}</span>}
+            <h1>
+              {workspace ? workspace.split(/[/\\]/).filter(Boolean).pop() : 'GraphHub'}
             </h1>
-            <button 
-              onClick={() => navigate('/')} 
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '5px' }}
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255, 255, 255, 0.56)',
+                cursor: 'pointer',
+                padding: '8px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
               title="Return to Home"
             >
               <Home size={18} />
             </button>
           </div>
-          <p style={{color: 'var(--text-secondary)', fontSize: '12px'}}>Local Code Intelligence</p>
+          <p>Code Intelligence Explorer</p>
         </div>
 
         <form className="search-box" onSubmit={handleSearch}>
-          <Search size={18} color="#00ffcc" />
-          <input 
-            placeholder="Semantic Search..." 
+          <Search size={18} color="#0071e3" />
+          <input
+            placeholder="Search code..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -210,39 +229,171 @@ function Explorer() {
         <div className="details-panel">
           {selectedNode ? (
             <div>
-              <div className={`node-chip ${selectedNode.data.type}`}>{selectedNode.data.type}</div>
-              <h2 style={{margin: '0 0 10px 0', fontSize: '18px'}}>{selectedNode.data.label}</h2>
-              
-              <div style={{display: 'flex', gap: '10px', marginBottom: '20px'}}>
-                <FileCode size={16} /> <span style={{fontSize: '12px'}}>{selectedNode.data.properties.path || 'Symbol'}</span>
+              <span className={`node-chip ${selectedNode.data.type}`}>{selectedNode.data.type}</span>
+              <h2 style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '21px',
+                fontWeight: 600,
+                margin: '0 0 12px 0',
+                lineHeight: 1.19
+              }}>
+                {selectedNode.data.label}
+              </h2>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '20px',
+                fontSize: '13px',
+                color: 'rgba(255, 255, 255, 0.56)'
+              }}>
+                <FileCode size={14} />
+                <span style={{ fontFamily: 'var(--font-mono)' }}>
+                  {selectedNode.data.properties.path || selectedNode.data.properties.id?.split(':')[0]?.split('/').pop() || 'Symbol'}
+                </span>
               </div>
 
+              {selectedNode.data.properties.purpose && (
+                <div className="doc-section" style={{ borderLeftColor: '#fbbf24' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <Lightbulb size={14} color="#fbbf24" />
+                    <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Purpose</strong>
+                  </div>
+                  {selectedNode.data.properties.purpose}
+                </div>
+              )}
+
+              {selectedNode.data.properties.strategy && (
+                <div className="doc-section" style={{ borderLeftColor: '#a855f7', marginTop: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <Zap size={14} color="#a855f7" />
+                    <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Strategy</strong>
+                  </div>
+                  {selectedNode.data.properties.strategy}
+                </div>
+              )}
+
+              {(selectedNode.data.properties.inputs?.length > 0 || selectedNode.data.properties.outputs?.length > 0) && (
+                <div style={{ marginTop: '20px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                  {selectedNode.data.properties.inputs?.length > 0 && (
+                    <div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginBottom: '10px',
+                        fontSize: '12px',
+                        color: 'rgba(255, 255, 255, 0.56)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        <ArrowRight size={12} />
+                        <strong>Inputs</strong>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {selectedNode.data.properties.inputs.map((i: string, idx: number) => (
+                          <span key={idx} style={{
+                            background: 'rgba(34, 197, 94, 0.15)',
+                            border: '1px solid rgba(34, 197, 94, 0.3)',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontFamily: 'var(--font-mono)',
+                            color: '#34d399'
+                          }}>{i}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedNode.data.properties.outputs?.length > 0 && (
+                    <div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginBottom: '10px',
+                        fontSize: '12px',
+                        color: 'rgba(255, 255, 255, 0.56)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        <ArrowLeft size={12} />
+                        <strong>Outputs</strong>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {selectedNode.data.properties.outputs.map((o: string, idx: number) => (
+                          <span key={idx} style={{
+                            background: 'rgba(59, 130, 246, 0.15)',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontFamily: 'var(--font-mono)',
+                            color: '#60a5fa'
+                          }}>{o}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {selectedNode.data.properties.doc && (
-                <div className="doc-section">
-                  <div style={{display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px'}}>
-                    <BookOpen size={14} /> <strong>Documentation</strong>
+                <div className="doc-section" style={{ marginTop: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <BookOpen size={14} />
+                    <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Documentation</strong>
                   </div>
                   {selectedNode.data.properties.doc}
                 </div>
               )}
 
               {selectedNode.data.properties.calls && selectedNode.data.properties.calls.length > 0 && (
-                <div style={{marginTop: '20px'}}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '10px'}}>
-                    <Layers size={14} /> <strong>Outbound Calls</strong>
+                <div style={{ marginTop: '20px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginBottom: '12px',
+                    fontSize: '12px',
+                    color: 'rgba(255, 255, 255, 0.56)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    <Layers size={12} />
+                    <strong>Calls</strong>
                   </div>
-                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '5px'}}>
-                    {selectedNode.data.properties.calls.map((c: string) => (
-                      <span key={c} style={{background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '11px'}}>{c}</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {selectedNode.data.properties.calls.map((c: string, idx: number) => (
+                      <span key={idx} style={{
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontFamily: 'var(--font-mono)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <ChevronRight size={10} />
+                        {c}
+                      </span>
                     ))}
                   </div>
                 </div>
               )}
             </div>
           ) : (
-            <div style={{textAlign: 'center', color: 'var(--text-secondary)', marginTop: '50px'}}>
-              <Code size={48} style={{opacity: 0.2, marginBottom: '20px'}} />
-              <p>Select a node to see its details and dependencies</p>
+            <div style={{
+              textAlign: 'center',
+              color: 'rgba(255, 255, 255, 0.32)',
+              marginTop: '80px'
+            }}>
+              <Code size={56} strokeWidth={1} style={{ marginBottom: '24px' }} />
+              <p style={{ fontSize: '17px', lineHeight: 1.47 }}>
+                Select a node to explore<br />its purpose and connections
+              </p>
             </div>
           )}
         </div>

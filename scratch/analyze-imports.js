@@ -8,7 +8,15 @@ async function run() {
   const typescript = await Language.load(path.join(langDir, 'tree-sitter-typescript', 'tree-sitter-typescript.wasm'));
   parser.setLanguage(typescript);
   
-  const code = 'import { foo, bar as baz } from "./utils";\nimport defaultName from "./main";\nimport * as everything from "./lib";';
+  const code = `
+    /**
+     * @param a first input
+     * TODO: rename this function
+     */
+    function calculateTotal(a: number, b: number): number {
+      return a + b;
+    }
+  `;
   const tree = parser.parse(code);
   
   function debug(node, depth = 0) {

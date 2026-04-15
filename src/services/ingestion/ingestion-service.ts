@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import { CodeParser, SymbolDefinition } from './parser.ts';
 import { GraphClient } from '../db/graph-client.ts';
 import { EmbeddingService } from '../ai/embedding-service.ts';
@@ -18,13 +19,50 @@ export class IngestionService {
   public async initialize(): Promise<void> {
     await this.parser.initialize();
     await this.db.initializeSchema();
+    await this.embeddingService.initialize();
+    // Ensure file hash tracking table exists
+    await this.db.runCypher(
+      'CREATE NODE TABLE IF NOT EXISTS FileHash(path STRING, hash STRING, PRIMARY KEY (path))'
+    ).catch(() => {});
   }
 
-  public async indexFile(filePath: string): Promise<void> {
+  private async getFileHash(content: string): Promise<string> {
+    return crypto.createHash('sha256').update(content).digest('hex');
+  }
+
+  private async isFileStale(absolutePath: string, content: string): Promise<boolean> {
+    const hash = await this.getFileHash(content);
+    try {
+      const result = await this.db.runCypher(
+        'MATCH (h:FileHash {path: $path}) RETURN h.hash as hash',
+        { path: absolutePath }
+      );
+      const rows = await result.getAll();
+      if (rows.length === 0) return true;
+      return rows[0].hash !== hash;
+    } catch {
+      return true;
+    }
+  }
+
+  private async markFileIndexed(absolutePath: string, content: string): Promise<void> {
+    const hash = await this.getFileHash(content);
+    await this.db.runCypher(
+      'MERGE (h:FileHash {path: $path}) SET h.hash = $hash',
+      { path: absolutePath, hash }
+    ).catch(() => {});
+  }
+
+  public async indexFile(filePath: string, force = false): Promise<void> {
     const absolutePath = path.resolve(filePath);
     const content = await fs.readFile(absolutePath, 'utf8');
+
+    if (!force && !(await this.isFileStale(absolutePath, content))) {
+      return; // Skip unchanged file
+    }
+
     const ext = path.extname(filePath).slice(1);
-    
+
     let language = 'javascript';
     if (ext === 'ts') language = 'typescript';
     if (ext === 'tsx') language = 'tsx';
@@ -43,15 +81,17 @@ export class IngestionService {
       
       await this.db.runCypher(
         'MERGE (s:Symbol {id: $id}) ' +
-        'ON CREATE SET s.name = $name, s.kind = $kind, s.range = $range, s.calls = $calls, s.import_source = $importSource, s.import_specifiers = $importSpecifiers',
-        { 
-          id: symId, 
-          name: sym.name, 
-          kind: sym.kind, 
+        'ON CREATE SET s.name = $name, s.kind = $kind, s.range = $range, s.calls = $calls, s.import_source = $importSource, s.import_specifiers = $importSpecifiers, s.inputs = $inputs, s.outputs = $outputs',
+        {
+          id: symId,
+          name: sym.name,
+          kind: sym.kind,
           range: JSON.stringify(sym.range),
           calls: sym.calls || [],
           importSource: sym.imports?.[0]?.source || '',
-          importSpecifiers: sym.imports?.[0]?.specifiers || []
+          importSpecifiers: sym.imports?.[0]?.specifiers || [],
+          inputs: sym.inputs || [],
+          outputs: sym.outputs || []
         }
       );
 
@@ -80,14 +120,20 @@ export class IngestionService {
       }
     }
 
+    await this.markFileIndexed(absolutePath, content);
     console.log(`Indexed ${filePath} with ${symbols.length} symbols.`);
   }
 
-  public async indexFileFallback(filePath: string): Promise<void> {
+  public async indexFileFallback(filePath: string, force = false): Promise<void> {
     const absolutePath = path.resolve(filePath);
     const content = await fs.readFile(absolutePath, 'utf8');
+
+    if (!force && !(await this.isFileStale(absolutePath, content))) {
+      return; // Skip unchanged file
+    }
+
     const ext = path.extname(filePath).slice(1);
-    
+
     // 1. Add File Node
     await this.db.runCypher(
       'MERGE (f:File {path: $path}) ON CREATE SET f.language = $language',
@@ -130,6 +176,7 @@ export class IngestionService {
         { chunkId, symId }
       );
     }
+    await this.markFileIndexed(absolutePath, content);
     console.log(`Indexed generic fallback file ${filePath}.`);
   }
 
@@ -141,10 +188,7 @@ export class IngestionService {
     const extensions = ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.js'];
 
     for (const ext of extensions) {
-      const fullPath = targetBase + (ext.startsWith('/') ? ext : ext);
-      // Wait, if it starts with /, it's a directory case
       const candidate = ext.startsWith('/') ? targetBase + ext : targetBase + ext;
-      
       try {
         await fs.access(candidate);
         return candidate;

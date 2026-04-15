@@ -106,7 +106,7 @@ export class GraphHubAPIServer {
             const symbolId = rel['r']._dst.offset.toString();
             const chunk = chunks.find((c: any) => c['n']._id.offset.toString() === chunkId);
             if (chunk) {
-              docMap.set(symbolId, chunk['n'].doc);
+              docMap.set(symbolId, chunk['n'].text);
             }
         }
 
@@ -141,6 +141,48 @@ export class GraphHubAPIServer {
         const { query } = req.body;
         const results = await this.rag.search(query);
         res.json(results);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.get('/api/symbol/:name', async (req, res) => {
+      try {
+        const { name } = req.params;
+        const symbolResult = await this.db.runCypher(
+          'MATCH (f:File)-[:CONTAINS]->(s:Symbol {name: $name}) RETURN s, f.path as filePath',
+          { name }
+        );
+        const rows = await symbolResult.getAll();
+        if (rows.length === 0) {
+          res.status(404).json({ error: `Symbol '${name}' not found` });
+          return;
+        }
+
+        const calleesResult = await this.db.runCypher(
+          'MATCH (s:Symbol {name: $name})-[:CALLS]->(callee:Symbol) RETURN callee.name as name, callee.kind as kind',
+          { name }
+        );
+        const callersResult = await this.db.runCypher(
+          'MATCH (caller:Symbol)-[:CALLS]->(s:Symbol {name: $name}) RETURN caller.name as name, caller.kind as kind',
+          { name }
+        );
+
+        const sym = rows[0]['s'];
+        res.json({
+          name: sym.name,
+          kind: sym.kind,
+          filePath: rows[0].filePath,
+          range: sym.range ? JSON.parse(sym.range) : null,
+          inputs: sym.inputs || [],
+          outputs: sym.outputs || [],
+          purpose: sym.purpose || null,
+          strategy: sym.strategy || null,
+          technicalDebt: sym.technical_debt || [],
+          status: sym.status || 'Done',
+          callers: await callersResult.getAll(),
+          callees: await calleesResult.getAll(),
+        });
       } catch (err: any) {
         res.status(500).json({ error: err.message });
       }

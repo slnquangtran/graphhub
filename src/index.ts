@@ -1,6 +1,9 @@
 import { IngestionService } from './services/ingestion/ingestion-service.ts';
 import { GraphHubMCPServer } from './services/mcp/server.ts';
+import { GraphExporter } from './services/db/graph-exporter.ts';
+import { DocGenerator } from './services/ai/doc-generator.ts';
 import path from 'path';
+import fs from 'fs';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -22,13 +25,53 @@ async function main() {
     const server = new GraphHubMCPServer();
     console.error('--- GraphHub MCP Server Starting ---');
     await server.run();
+  } else if (command === 'visualize') {
+    const exporter = new GraphExporter();
+    console.error('--- GraphHub Visualizer ---');
+    const mermaid = await exporter.exportToMermaid();
+    const outPath = args[1] || 'graph.mermaid';
+    fs.writeFileSync(outPath, mermaid);
+    console.error(`Mermaid graph written to ${path.resolve(outPath)}`);
+    process.exit(0);
   } else if (command === 'serve-api') {
     const { GraphHubAPIServer } = await import('./services/api/server.ts');
     const server = new GraphHubAPIServer();
     console.error('--- GraphHub API Server Starting ---');
     server.listen(9000);
+  } else if (command === 'docs') {
+    // docs <provider> [--api-key KEY] [--model MODEL] [--base-url URL]
+    const provider = (args[1] || 'heuristic') as 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'heuristic';
+    const apiKeyIdx = args.indexOf('--api-key');
+    const modelIdx = args.indexOf('--model');
+    const baseUrlIdx = args.indexOf('--base-url');
+
+    const apiKey = apiKeyIdx !== -1 ? args[apiKeyIdx + 1] : process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
+    const model = modelIdx !== -1 ? args[modelIdx + 1] : undefined;
+    const baseUrl = baseUrlIdx !== -1 ? args[baseUrlIdx + 1] : undefined;
+
+    console.error('--- GraphHub Documentation Generator ---');
+    console.error(`Provider: ${provider}, Model: ${model || '(default)'}`);
+
+    const generator = new DocGenerator({ provider, apiKey, model, baseUrl });
+    await generator.generateAll({
+      concurrency: 3,
+      onProgress: (current, total, name) => {
+        console.error(`[${current}/${total}] Generated docs for: ${name}`);
+      },
+    });
+    process.exit(0);
   } else {
-    console.error('Usage: tsx src/index.ts [index <dir> | serve | serve-api]');
+    console.error('Usage: tsx src/index.ts [index <dir> | serve | serve-api | visualize | docs <provider>]');
+    console.error('');
+    console.error('Commands:');
+    console.error('  index <dir>              Index a directory into the knowledge graph');
+    console.error('  serve                    Start the MCP server (stdio)');
+    console.error('  serve-api                Start the REST API server (port 9000)');
+    console.error('  visualize [out.mermaid]  Export the graph to Mermaid format');
+    console.error('  docs <provider>          Generate purpose/strategy docs for all functions');
+    console.error('');
+    console.error('Docs providers: heuristic (default, no API needed), openai, anthropic, ollama, openrouter');
+    console.error('  Options: --api-key KEY, --model MODEL, --base-url URL');
     process.exit(1);
   }
 }

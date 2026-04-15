@@ -1,73 +1,69 @@
-# React + TypeScript + Vite
+# GraphHub Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The React + TypeScript frontend for GraphHub. Provides an interactive graph explorer and semantic search interface over an indexed codebase.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Layer | Technology |
+|---|---|
+| Framework | React 18 + TypeScript |
+| Build | Vite |
+| Graph rendering | React Flow + Dagre (auto-layout) |
+| Routing | React Router DOM |
+| Icons | Lucide React |
 
-## React Compiler
+## Pages
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### `/` — Home
+Entry point for the application. Allows you to:
+- Submit an absolute directory path to trigger live indexing via the API
+- View previously indexed workspaces and navigate directly to their graph
 
-## Expanding the ESLint configuration
+### `/explorer?workspace=<path>` — Explorer
+The main visualization view. Features:
+- **Interactive graph** — Nodes represent `File`, `Symbol` (function / class / method / variable / interface). Edges show `CALLS` (green, animated), `IMPORTS` (blue), and `CONTAINS` (amber).
+- **Dagre layout** — Automatic top-down or left-right hierarchical layout.
+- **Minimap + controls** — Pan, zoom, fit-to-view.
+- **Semantic search** — Natural language query highlights matching nodes using cosine similarity RAG.
+- **Node detail panel** — Click any node to see its type, file path, documentation, and outbound calls.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Running
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+```bash
+# From project root — starts API server + Vite dev server concurrently
+npm run dashboard
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Or start only the frontend (requires API already running on :9000)
+cd dashboard
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The frontend runs on `http://localhost:5173` and proxies data from the API at `http://localhost:9000`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## API Endpoints Used
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Endpoint | Description |
+|---|---|
+| `GET /api/workspaces` | List previously indexed workspace roots |
+| `POST /api/index` | Trigger indexing for a given `targetDir` |
+| `GET /api/graph?workspace=<path>` | Fetch nodes and edges for the graph view |
+| `POST /api/search` | Semantic search (RAG); returns ranked symbol matches |
+| `GET /api/symbol/:name` | Detailed symbol info: inputs, outputs, callers, callees, technical debt |
+
+## Node Types & Colors
+
+| Type | Color |
+|---|---|
+| `File` | Blue border |
+| `Symbol` (function) | Green |
+| `Symbol` (class) | Purple |
+| `Symbol` (method) | Teal |
+| `Symbol` (interface) | Light blue |
+
+## Building for Production
+
+```bash
+cd dashboard
+npm run build
+# Output in dashboard/dist/
 ```

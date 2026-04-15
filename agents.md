@@ -1,38 +1,80 @@
 # Identity
-You are helping Quang with building an application called GraphHub.
+You are helping Quang build GraphHub — a local-first code intelligence platform that parses codebases into interactive knowledge graphs.
 
-# Folder Structure
-- /planning — Specs, architecture, decisions
-- /src — Application code
-- /docs — Documentation
-- /ops — Deployment and operations
+## What GraphHub Does
+1. **Indexes** a source directory → extracts symbols (functions, classes, methods, interfaces) via Tree-sitter
+2. **Stores** the symbol graph in KuzuDB (`.graphhub/db`)
+3. **Embeds** doc comments locally via `Xenova/all-MiniLM-L6-v2` (no external API)
+4. **Serves** the graph via REST API (port 9000) and MCP stdio server
+5. **Visualizes** it in a React dashboard at port 5173
 
-# Rules
-- Read this file first on every new task
-- Ask before creating files outside of /graphhub
-- When unsure, ask
-- Proceed with planning mode before implementing
-- Prove every decision with a reliable source / explanation before proceed with it
-- Follow routing strictly
+## Architecture at a Glance
+
+```
+src/services/
+  ingestion/   ← parsing + orchestration (CodeParser, IngestionService)
+  db/          ← KuzuDB wrapper + Mermaid exporter (GraphClient, GraphExporter)
+  ai/          ← local embeddings + RAG (EmbeddingService, RAGService)
+  api/         ← Express REST API :9000 (GraphHubAPIServer)
+  mcp/         ← MCP stdio server — 5 tools (GraphHubMCPServer)
+dashboard/     ← React + React Flow frontend :5173
+```
+
+## Folder Structure
+- `/planning` — Specs, architecture decisions (ADRs)
+- `/src` — Backend engine and servers
+- `/dashboard` — React frontend
+- `/docs` — User and API documentation
+- `/ops` — Operational runbooks
 
 ## Routing
-| Task | Go to | Read | Skills |
-|------|-------|------|--------|
-| Spec a feature | /planning | CONTEXT.md | — |
-| Write code | /src | CONTEXT.md | testing-skill |
-| Write docs | /docs | CONTEXT.md | doc-authoring-skill |
-| Deploy or debug | /ops | CONTEXT.md | — |
+| Task | Go to | Read first |
+|------|-------|------------|
+| Spec a new feature | `/planning/specs/` | `planning/context.md` |
+| Write backend code | `/src/` | `src/context.md` |
+| Write frontend code | `/dashboard/src/` | `dashboard/README.md` |
+| Write docs | `/docs/` | `docs/context.md` |
+| Deploy or debug | `/ops/` | `ops/context.md` |
 
-## Naming conventions
-- Specs: feature-name_spec.md
-- Components: PascalCase
-- Tests: feature-name.test.ts
-- Decision records: YYYY-MM-DD-decision-title.md
+## Naming Conventions
+- Specs: `feature-name_spec.md`
+- React components: `PascalCase.tsx`
+- Tests: `feature-name.test.ts`
+- Decision records: `YYYY-MM-DD-decision-title.md`
+
+## Critical Rules
+- **Never call `new GraphClient()`** — always use `GraphClient.getInstance()`.
+- **Always call `IngestionService.initialize()` before any indexing** — it boots the parser, DB schema, and embedding model.
+- **KuzuDB is single-writer** — do not run indexing and `serve-api` against the same `.graphhub/db` simultaneously.
+- **No `any` types** — use `SymbolDefinition`, `SearchResult`, and properly typed Kuzu rows.
+- **Incremental indexing is on** — files are skipped if their SHA-256 hash hasn't changed. Use `force=true` to override.
+- **Spec before feature** — for non-trivial work, update or create a file in `planning/specs/` first.
+
+## MCP Tools Available (when GraphHub serves another repo)
+| Tool | Input | Use When |
+|---|---|---|
+| `query_graph` | `{ cypher }` | Custom graph traversals |
+| `get_file_symbols` | `{ path }` | List symbols in a specific file |
+| `semantic_search` | `{ query, limit? }` | Find code by description |
+| `get_context` | `{ name }` | Callers + callees of a symbol |
+| `impact_analysis` | `{ name }` | What breaks if you change this symbol |
+
+## Common Commands
+```bash
+npm run index -- <dir>    # Index a codebase
+npm run docs              # Generate purpose/strategy for all functions (heuristic)
+npm run docs -- openai    # Generate docs using OpenAI (needs OPENAI_API_KEY)
+npm run docs -- ollama    # Generate docs using local Ollama
+npm run dashboard         # Start API + React dashboard
+npm run serve             # Start MCP server (stdio)
+npm run visualize         # Export graph.mermaid
+npm test                  # Run vitest
+```
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **graphhub** (161 symbols, 324 relationships, 11 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **graphhub** (336 symbols, 777 relationships, 26 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

@@ -16,6 +16,10 @@ export interface SymbolDefinition {
   calls?: string[];
   imports?: ImportDefinition[];
   doc?: string;
+  inputs?: string[];
+  outputs?: string[];
+  technicalDebt?: string[];
+  status?: 'Done' | 'Incomplete';
 }
 
 export class CodeParser {
@@ -75,9 +79,43 @@ export class CodeParser {
         case 'method_definition':
           let kind: any = node.type === 'method_definition' ? 'method' : 'function';
           let name = 'anonymous';
+          let inputs: string[] = [];
+          let outputs: string[] = [];
+          let technicalDebt: string[] = [];
           
           if (node.type === 'method_definition' || node.type === 'function_declaration') {
             name = node.childForFieldName('name')?.text || 'anonymous';
+          }
+
+          // Extract inputs
+          const paramsNode = node.childForFieldName('parameters');
+          if (paramsNode) {
+            inputs = paramsNode.text.replace(/[()]/g, '').split(',').map(s => s.trim()).filter(Boolean);
+          }
+
+          // Extract outputs
+          const returnTypeNode = node.childForFieldName('return_type');
+          if (returnTypeNode) {
+            outputs.push(returnTypeNode.text.replace(/^:\s*/, ''));
+          } else {
+             // Basic heuristic inference tracking
+             const returnStatements = node.descendantsOfType('return_statement');
+             if (returnStatements.length > 0) {
+                 outputs.push('inferred_dynamic_type');
+             } else {
+                 outputs.push('void');
+             }
+          }
+
+          // Identify Technical Debt
+          const rawText = node.text;
+          const pendingCommentsStr = pendingComments.join('\n');
+          const combinedContext = rawText + pendingCommentsStr;
+          const debtMarkers = combinedContext.match(/(TODO|FIXME|HACK|OPTIMIZE|XXX).*$/gm);
+          
+          if (debtMarkers) {
+             // Clean markers strings
+             technicalDebt = [...new Set(debtMarkers.map(m => m.trim()))];
           }
 
           symbol = {
@@ -85,7 +123,11 @@ export class CodeParser {
             kind,
             range: this.getRange(node),
             calls: [],
-            doc: pendingComments.join('\n')
+            doc: pendingCommentsStr,
+            inputs: inputs.length > 0 ? inputs : undefined,
+            outputs: outputs.length > 0 ? outputs : undefined,
+            technicalDebt: technicalDebt.length > 0 ? technicalDebt : undefined,
+            status: technicalDebt.length > 0 ? 'Incomplete' : 'Done'
           };
           pendingComments = []; // Reset after assigning
           break;
