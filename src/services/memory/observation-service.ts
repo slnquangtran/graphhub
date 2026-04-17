@@ -55,7 +55,7 @@ export class ObservationService {
     const tags = options.tags || [];
     const timestamp = new Date().toISOString();
 
-    const embedding = await this.embeddings.embed(content);
+    const embedding = await this.embeddings.generateEmbedding(content);
 
     await this.db.runCypher(
       `CREATE (o:Observation {
@@ -93,10 +93,10 @@ export class ObservationService {
     limit?: number;
   } = {}): Promise<Observation[]> {
     const limit = options.limit || 10;
-    const queryEmbedding = await this.embeddings.embed(query);
+    const queryEmbedding = await this.embeddings.generateEmbedding(query);
 
     let cypher = 'MATCH (o:Observation)';
-    const params: Record<string, any> = { limit };
+    const params: Record<string, any> = {};
     const conditions: string[] = [];
 
     if (options.session_id) {
@@ -114,7 +114,9 @@ export class ObservationService {
 
     cypher += ' RETURN o.id, o.session_id, o.timestamp, o.type, o.content, o.tags, o.embedding';
 
-    const result = await this.db.runCypher(cypher, params);
+    const result = Object.keys(params).length > 0
+      ? await this.db.runCypher(cypher, params)
+      : await this.db.runCypher(cypher);
     const rows = await result.getAll();
 
     // Compute cosine similarity and rank
