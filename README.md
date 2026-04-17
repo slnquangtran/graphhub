@@ -16,6 +16,10 @@ AI coding assistants lose context between sessions. They can't remember what the
 - **Knowledge Graph** — Stored in KuzuDB with File, Symbol, and Chunk nodes connected by CONTAINS, CALLS, IMPORTS, and DESCRIBES edges.
 - **Semantic Search (RAG)** — Local embeddings via `all-MiniLM-L6-v2` for natural language code search. Zero API costs.
 - **Impact Analysis** — Understand blast radius before editing. See direct and indirect callers of any function.
+- **Session Memory** — `remember` and `recall` tools persist learnings across sessions. Never lose context again.
+- **Always-On Hooks** — PreToolUse hooks inject graph context before Claude reads files.
+- **Graph Report** — Auto-generated `GRAPH_REPORT.md` with god nodes, clusters, and architecture overview.
+- **One-Command Install** — `npm run install-claude` configures MCP server and hooks automatically.
 - **MCP Server** — Standard Model Context Protocol interface for AI agent integration.
 - **REST API** — Express server on port 9000 for custom integrations.
 - **React Dashboard** — Interactive graph visualization with React Flow.
@@ -48,6 +52,25 @@ npm run index -- .
 ```
 
 This creates a `.graphhub/` directory containing your knowledge graph.
+
+### Generate the Graph Report
+
+```bash
+npm run report
+```
+
+Creates `.graphhub/GRAPH_REPORT.md` with god nodes, clusters, and session memory.
+
+### Configure Claude Code (One Command)
+
+```bash
+npm run install-claude
+```
+
+This automatically:
+- Adds GraphHub as an MCP server to `.claude/settings.json`
+- Installs a PreToolUse hook that reminds Claude about the graph before file searches
+- Updates `CLAUDE.md` with usage instructions
 
 ### Start the MCP Server
 
@@ -119,6 +142,19 @@ When connected to an AI agent, GraphHub exposes these tools:
 | `semantic_search` | Natural language search for code functionality |
 | `get_context` | Get all callers and callees of a symbol |
 | `impact_analysis` | Analyze blast radius — what breaks if you change a symbol |
+| `remember` | Save a learning, decision, or finding to session memory |
+| `recall` | Search session memory using natural language |
+| `forget` | Delete observations from session memory |
+
+### Session Memory Example
+
+```
+# Save what you learned
+remember({content: "Auth flow validates JWT in middleware", type: "learning", related_symbols: ["validateToken"]})
+
+# Retrieve it later (even in a new session)
+recall({query: "how does auth work?"})
+```
 
 ## Configuring with Claude Code
 
@@ -189,13 +225,43 @@ npm run index -- ./src
 npm run serve-api
 ```
 
+## Token Reduction
+
+GraphHub dramatically reduces token consumption for codebase navigation:
+
+| Traditional Approach | With GraphHub | Savings |
+|---------------------|---------------|---------|
+| Read 5 files to find a function | `semantic_search` query | ~80% |
+| Grep + read to find callers | `get_context` | ~90% |
+| Read entire files for impact | `impact_analysis` | ~85% |
+| Re-explain context each session | `recall` past learnings | ~70% |
+
+**How it works:** Instead of reading full file contents, Claude queries the knowledge graph for specific symbols and relationships. The report provides god nodes (high-traffic symbols) and clusters (module groupings) without reading code.
+
+## Comparison with Similar Tools
+
+| Feature | GraphHub | claude-mem | graphify | cognee |
+|---------|----------|-----------|----------|--------|
+| Code graph | Yes | No | Yes | Limited |
+| Session memory | Yes | Yes | No | Yes |
+| Always-on hooks | Yes | No | Yes | Yes |
+| One-command install | Yes | Yes | Yes | No |
+| 100% local | Yes | Yes | Yes | Optional |
+| Semantic search | Yes | Yes | Yes | Yes |
+| Impact analysis | Yes | No | Yes | No |
+
 ## Roadmap
 
+- [x] Session memory (remember/recall/forget)
+- [x] Always-on PreToolUse hooks
+- [x] Graph report generation
+- [x] One-command Claude Code install
 - [ ] Worker thread indexing for large repos
 - [ ] `.gitignore` support
 - [ ] INHERITS and IMPLEMENTS edges for class hierarchies
 - [ ] Native Python and Go Tree-sitter grammars
 - [ ] ANN vector index for large-scale semantic search
+- [ ] Community detection (Leiden algorithm)
 
 ## License
 

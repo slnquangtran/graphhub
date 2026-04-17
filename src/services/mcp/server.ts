@@ -6,15 +6,18 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { GraphClient } from "../db/graph-client.ts";
 import { RAGService } from "../ai/rag-service.ts";
+import { ObservationService } from "../memory/observation-service.ts";
 
 export class GraphHubMCPServer {
   private server: Server;
   private db: GraphClient;
   private rag: RAGService;
+  private observations: ObservationService;
 
   constructor() {
     this.db = GraphClient.getInstance();
     this.rag = RAGService.getInstance();
+    this.observations = ObservationService.getInstance();
     this.server = new Server(
       {
         name: "graphhub",
@@ -87,6 +90,47 @@ export class GraphHubMCPServer {
               name: { type: "string", description: "The symbol name to analyze" },
             },
             required: ["name"],
+          },
+        },
+        {
+          name: "remember",
+          description: "Save a learning, decision, finding, or context to session memory. Persists across sessions and is searchable via recall.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              content: { type: "string", description: "The content to remember" },
+              type: { type: "string", enum: ["learning", "decision", "finding", "context"], description: "Type of observation (default: learning)" },
+              session_id: { type: "string", description: "Optional session identifier for grouping" },
+              related_symbols: { type: "array", items: { type: "string" }, description: "Symbol names this observation relates to" },
+              tags: { type: "array", items: { type: "string" }, description: "Optional tags for categorization" },
+            },
+            required: ["content"],
+          },
+        },
+        {
+          name: "recall",
+          description: "Search session memory for past learnings, decisions, or findings using natural language.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Natural language query to search memories" },
+              session_id: { type: "string", description: "Filter to a specific session" },
+              type: { type: "string", enum: ["learning", "decision", "finding", "context"], description: "Filter by observation type" },
+              limit: { type: "number", description: "Maximum results to return (default: 10)" },
+            },
+            required: ["query"],
+          },
+        },
+        {
+          name: "forget",
+          description: "Delete observations from session memory.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              observation_id: { type: "string", description: "Specific observation ID to delete" },
+              session_id: { type: "string", description: "Delete all observations from a session" },
+              before: { type: "string", description: "Delete observations before this ISO timestamp" },
+            },
           },
         },
       ],
@@ -170,6 +214,37 @@ export class GraphHubMCPServer {
                   indirect_callers: uniqueD2
                 }, null, 2)
               }],
+            };
+          }
+          case "remember": {
+            const id = await this.observations.remember(args?.content as string, {
+              type: args?.type as any,
+              session_id: args?.session_id as string,
+              related_symbols: args?.related_symbols as string[],
+              tags: args?.tags as string[],
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify({ success: true, observation_id: id }, null, 2) }],
+            };
+          }
+          case "recall": {
+            const results = await this.observations.recall(args?.query as string, {
+              session_id: args?.session_id as string,
+              type: args?.type as string,
+              limit: args?.limit as number,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+            };
+          }
+          case "forget": {
+            await this.observations.forget({
+              observation_id: args?.observation_id as string,
+              session_id: args?.session_id as string,
+              before: args?.before as string,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify({ success: true }, null, 2) }],
             };
           }
           default:

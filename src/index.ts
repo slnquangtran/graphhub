@@ -2,6 +2,9 @@ import { IngestionService } from './services/ingestion/ingestion-service.ts';
 import { GraphHubMCPServer } from './services/mcp/server.ts';
 import { GraphExporter } from './services/db/graph-exporter.ts';
 import { DocGenerator } from './services/ai/doc-generator.ts';
+import { Installer } from './services/install/installer.ts';
+import { ReportGenerator } from './services/report/report-generator.ts';
+import { ObservationService } from './services/memory/observation-service.ts';
 import path from 'path';
 import fs from 'fs';
 
@@ -39,6 +42,28 @@ async function main() {
     console.error('--- GraphHub API Server Starting ---');
     await server.initialize();
     server.listen(9000);
+  } else if (command === 'install') {
+    const installer = new Installer();
+    const targetDir = args[1] || process.cwd();
+    console.error('--- GraphHub Installer ---');
+    await installer.installForClaudeCode(targetDir);
+    process.exit(0);
+  } else if (command === 'uninstall') {
+    const installer = new Installer();
+    const targetDir = args[1] || process.cwd();
+    console.error('--- GraphHub Uninstaller ---');
+    await installer.uninstall(targetDir);
+    process.exit(0);
+  } else if (command === 'report') {
+    const service = new IngestionService();
+    await service.initialize();
+    const obsService = ObservationService.getInstance();
+    await obsService.initializeSchema();
+    const generator = new ReportGenerator();
+    console.error('--- GraphHub Report Generator ---');
+    const outPath = await generator.generate();
+    console.error(`Report written to ${path.resolve(outPath)}`);
+    process.exit(0);
   } else if (command === 'docs') {
     // docs <provider> [--api-key KEY] [--model MODEL] [--base-url URL]
     const provider = (args[1] || 'heuristic') as 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'heuristic';
@@ -62,13 +87,16 @@ async function main() {
     });
     process.exit(0);
   } else {
-    console.error('Usage: tsx src/index.ts [index <dir> | serve | serve-api | visualize | docs <provider>]');
+    console.error('Usage: tsx src/index.ts <command> [options]');
     console.error('');
     console.error('Commands:');
     console.error('  index <dir>              Index a directory into the knowledge graph');
     console.error('  serve                    Start the MCP server (stdio)');
     console.error('  serve-api                Start the REST API server (port 9000)');
     console.error('  visualize [out.mermaid]  Export the graph to Mermaid format');
+    console.error('  report                   Generate GRAPH_REPORT.md summary');
+    console.error('  install [dir]            Configure Claude Code integration (MCP + hooks)');
+    console.error('  uninstall [dir]          Remove GraphHub from Claude Code settings');
     console.error('  docs <provider>          Generate purpose/strategy docs for all functions');
     console.error('');
     console.error('Docs providers: heuristic (default, no API needed), openai, anthropic, ollama, openrouter');
