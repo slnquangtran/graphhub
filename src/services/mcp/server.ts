@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { GraphClient } from "../db/graph-client.ts";
-import { RAGService } from "../ai/rag-service.ts";
+import { RAGService, SearchMode } from "../ai/rag-service.ts";
 import { ObservationService, ObservationType, ImportanceLevel } from "../memory/observation-service.ts";
 import { DebugTraceService } from "../debug/trace-service.ts";
 
@@ -67,12 +67,76 @@ export class GraphHubMCPServer {
         },
         {
           name: "semantic_search",
-          description: "Search for code logic or functionality using natural language descriptions (RAG).",
+          description: "Search for code using natural language. Supports semantic (meaning-based), keyword, or hybrid search modes.",
           inputSchema: {
             type: "object",
             properties: {
               query: { type: "string", description: "The description of the logic to search for" },
-              limit: { type: "number", description: "Maximum number of results to return (default 5)" },
+              limit: { type: "number", description: "Maximum number of results to return (default 10)" },
+              mode: {
+                type: "string",
+                enum: ["semantic", "keyword", "hybrid"],
+                description: "Search mode: 'semantic' (meaning-based), 'keyword' (text matching), 'hybrid' (both combined, default)"
+              },
+              minScore: { type: "number", description: "Minimum relevance score threshold (0-1, default 0.1)" },
+              includeContext: { type: "boolean", description: "Include callers/callees in results (default false)" },
+              symbolKinds: {
+                type: "array",
+                items: { type: "string" },
+                description: "Filter by symbol kinds (e.g., ['function', 'class', 'method'])"
+              },
+            },
+            required: ["query"],
+          },
+        },
+        {
+          name: "search_by_name",
+          description: "Search for symbols by their name. Supports exact or fuzzy matching.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Symbol name to search for" },
+              fuzzy: { type: "boolean", description: "Enable fuzzy matching (default false)" },
+            },
+            required: ["name"],
+          },
+        },
+        {
+          name: "search_grouped",
+          description: "Search for code and group results by file. Useful for understanding which files are most relevant.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "The search query" },
+              limit: { type: "number", description: "Maximum number of results (default 10)" },
+              mode: {
+                type: "string",
+                enum: ["semantic", "keyword", "hybrid"],
+                description: "Search mode (default 'hybrid')"
+              },
+            },
+            required: ["query"],
+          },
+        },
+        {
+          name: "find_similar",
+          description: "Find symbols that are semantically similar to a given symbol. Useful for finding related code.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              symbolName: { type: "string", description: "The symbol name to find similar symbols for" },
+              limit: { type: "number", description: "Maximum number of results (default 5)" },
+            },
+            required: ["symbolName"],
+          },
+        },
+        {
+          name: "explain_search",
+          description: "Explain how a search query will be processed. Shows tokenization and search strategy.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "The search query to explain" },
             },
             required: ["query"],
           },
@@ -317,7 +381,46 @@ export class GraphHubMCPServer {
             };
           }
           case "semantic_search": {
-            const result = await this.rag.search(args?.query as string, args?.limit as number);
+            const result = await this.rag.advancedSearch(args?.query as string, {
+              limit: args?.limit as number,
+              mode: args?.mode as SearchMode,
+              minScore: args?.minScore as number,
+              includeContext: args?.includeContext as boolean,
+              symbolKinds: args?.symbolKinds as string[],
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+          }
+          case "search_by_name": {
+            const result = await this.rag.searchBySymbolName(
+              args?.name as string,
+              args?.fuzzy as boolean
+            );
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+          }
+          case "search_grouped": {
+            const result = await this.rag.searchGroupedByFile(args?.query as string, {
+              limit: args?.limit as number,
+              mode: args?.mode as SearchMode,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+          }
+          case "find_similar": {
+            const result = await this.rag.findSimilarSymbols(
+              args?.symbolName as string,
+              args?.limit as number
+            );
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+          }
+          case "explain_search": {
+            const result = await this.rag.explainSearch(args?.query as string);
             return {
               content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
             };

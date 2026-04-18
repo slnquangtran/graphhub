@@ -75,6 +75,12 @@ describe('ObservationService', () => {
   });
 
   it('should return stats', async () => {
+    // Create some data first
+    await service.remember('Stats test observation', {
+      type: 'learning',
+      project: testProject,
+    });
+
     const stats = await service.getStats(testProject);
 
     expect(stats.total).toBeGreaterThan(0);
