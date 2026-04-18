@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { ObservationService } from '../services/memory/observation-service.ts';
 import { EmbeddingService } from '../services/ai/embedding-service.ts';
+import { GraphClient } from '../services/db/graph-client.ts';
 import crypto from 'crypto';
 
 describe('ObservationService', () => {
@@ -9,6 +10,10 @@ describe('ObservationService', () => {
   const testProject = `test-project-${crypto.randomUUID().slice(0, 8)}`;
 
   beforeAll(async () => {
+    // Symbol table must exist before RELATES_TO edge can be created
+    const graphClient = GraphClient.getInstance();
+    await graphClient.initializeSchema();
+
     const embeddings = EmbeddingService.getInstance();
     await embeddings.initialize();
     service = ObservationService.getInstance();
@@ -70,7 +75,7 @@ describe('ObservationService', () => {
   });
 
   it('should return stats', async () => {
-    const stats = await service.getStats('test-project');
+    const stats = await service.getStats(testProject);
 
     expect(stats.total).toBeGreaterThan(0);
     expect(stats.byType).toBeDefined();
