@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import ignore, { Ignore } from 'ignore';
 import { CodeParser, SymbolDefinition } from './parser.ts';
 import { GraphClient } from '../db/graph-client.ts';
 import { EmbeddingService } from '../ai/embedding-service.ts';
@@ -9,11 +10,45 @@ export class IngestionService {
   private parser: CodeParser;
   private db: GraphClient;
   private embeddingService: EmbeddingService;
+  private gitignoreCache: Map<string, Ignore> = new Map();
 
   constructor() {
     this.parser = new CodeParser();
     this.db = GraphClient.getInstance();
     this.embeddingService = EmbeddingService.getInstance();
+  }
+
+  private async loadGitignore(rootDir: string): Promise<Ignore> {
+    if (this.gitignoreCache.has(rootDir)) {
+      return this.gitignoreCache.get(rootDir)!;
+    }
+
+    const ig = ignore();
+
+    // Always ignore these directories regardless of .gitignore
+    const defaultIgnores = [
+      'node_modules', '.git', '.graphhub', '__pycache__', '.venv', 'venv',
+      '.env', 'env', '.claude', '.gemini', '.gitnexus',
+      'dist', 'build', 'out', '.next', '.nuxt', 'coverage', '.cache',
+      'vendor', 'target', 'bin', 'obj', '.idea', '.vscode'
+    ];
+    ig.add(defaultIgnores);
+
+    // Load .gitignore from root directory
+    const gitignorePath = path.join(rootDir, '.gitignore');
+    try {
+      const content = await fs.readFile(gitignorePath, 'utf8');
+      ig.add(content);
+    } catch {
+      // No .gitignore file, use defaults only
+    }
+
+    this.gitignoreCache.set(rootDir, ig);
+    return ig;
+  }
+
+  public clearGitignoreCache(): void {
+    this.gitignoreCache.clear();
   }
 
   public async initialize(): Promise<void> {
@@ -274,22 +309,22 @@ export class IngestionService {
     }
   }
 
-  public async indexDirectory(dirPath: string): Promise<void> {
+  public async indexDirectory(dirPath: string, rootDir?: string): Promise<void> {
+    const root = rootDir || dirPath;
+    const ig = await this.loadGitignore(root);
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
+      const relativePath = path.relative(root, fullPath);
+
+      // Check if path should be ignored (gitignore patterns)
+      if (ig.ignores(relativePath) || ig.ignores(relativePath + '/')) {
+        continue;
+      }
 
       if (entry.isDirectory()) {
-        // Skip common non-source directories
-        const skipDirs = [
-          'node_modules', '.git', '.graphhub', '__pycache__', '.venv', 'venv',
-          '.env', 'env', '.claude', '.gemini', '.gitnexus', 'docs',
-          'dist', 'build', 'out', '.next', '.nuxt', 'coverage', '.cache',
-          'vendor', 'target', 'bin', 'obj', '.idea', '.vscode'
-        ];
-        if (skipDirs.includes(entry.name)) continue;
-        await this.indexDirectory(fullPath);
+        await this.indexDirectory(fullPath, root);
       } else {
         const ext = path.extname(entry.name);
         // Languages with full AST parsing support

@@ -89,12 +89,12 @@ CREATE REL TABLE DESCRIBES(FROM Chunk TO Symbol)
 | Robustness | Graceful on syntax errors | ✅ (Tree-sitter is error-tolerant) |
 | Incremental re-index | Skip unchanged files | ✅ Implemented |
 | Concurrent indexing | Worker threads | ❌ Planned |
-| `.gitignore` respect | Skip gitignored files | ❌ Planned |
+| `.gitignore` respect | Skip gitignored files | ✅ Implemented |
 
 ## Planned Enhancements
 
 1. **Worker thread indexing** — offload file parsing to `worker_threads` to prevent blocking the event loop during large repo indexing.
-2. **`.gitignore` support** — read `.gitignore` and propagate exclusions into `indexDirectory`.
+2. ~~**`.gitignore` support**~~ ✅ **Implemented** — reads `.gitignore` from root directory and respects patterns during indexing.
 3. **`INHERITS` and `IMPLEMENTS` edges** — extend `CodeParser` to extract `extends` and `implements` clauses from class declarations.
 4. **Python/Go grammars** — add `tree-sitter-python` and `tree-sitter-go` for full AST symbol extraction.
 5. **ANN vector index** — enable Kuzu's approximate nearest neighbor index on `Chunk.embedding` for large repos.
