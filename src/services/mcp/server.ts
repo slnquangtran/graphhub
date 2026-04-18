@@ -6,7 +6,10 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { GraphClient } from "../db/graph-client.ts";
 import { RAGService } from "../ai/rag-service.ts";
-import { ObservationService } from "../memory/observation-service.ts";
+import { ObservationService, ObservationType, ImportanceLevel } from "../memory/observation-service.ts";
+
+const OBSERVATION_TYPES = ['learning', 'decision', 'finding', 'context', 'bugfix', 'feature', 'refactor', 'discovery', 'change', 'warning', 'todo'];
+const IMPORTANCE_LEVELS = ['low', 'medium', 'high', 'critical'];
 
 export class GraphHubMCPServer {
   private server: Server;
@@ -21,7 +24,7 @@ export class GraphHubMCPServer {
     this.server = new Server(
       {
         name: "graphhub",
-        version: "1.0.0",
+        version: "1.1.0",
       },
       {
         capabilities: {
@@ -36,6 +39,7 @@ export class GraphHubMCPServer {
   private setupTools() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
+        // === Code Graph Tools ===
         {
           name: "query_graph",
           description: "Run a direct Cypher query against the codebase graph database. Use this to find complex relationships.",
@@ -92,45 +96,183 @@ export class GraphHubMCPServer {
             required: ["name"],
           },
         },
+
+        // === Enhanced Memory Tools ===
         {
           name: "remember",
-          description: "Save a learning, decision, finding, or context to session memory. Persists across sessions and is searchable via recall.",
+          description: "Save a learning, decision, finding, or other observation to persistent memory. Searchable via recall with semantic similarity.",
           inputSchema: {
             type: "object",
             properties: {
               content: { type: "string", description: "The content to remember" },
-              type: { type: "string", enum: ["learning", "decision", "finding", "context"], description: "Type of observation (default: learning)" },
-              session_id: { type: "string", description: "Optional session identifier for grouping" },
-              related_symbols: { type: "array", items: { type: "string" }, description: "Symbol names this observation relates to" },
-              tags: { type: "array", items: { type: "string" }, description: "Optional tags for categorization" },
+              type: {
+                type: "string",
+                enum: OBSERVATION_TYPES,
+                description: "Type of observation: learning, decision, finding, context, bugfix, feature, refactor, discovery, change, warning, todo"
+              },
+              title: { type: "string", description: "Short title/summary (auto-generated if not provided)" },
+              project: { type: "string", description: "Project name for filtering (default: 'default')" },
+              importance: {
+                type: "string",
+                enum: IMPORTANCE_LEVELS,
+                description: "Importance level: low, medium, high, critical (default: medium)"
+              },
+              session_id: { type: "string", description: "Session identifier for grouping" },
+              related_symbols: {
+                type: "array",
+                items: { type: "string" },
+                description: "Symbol names this observation relates to"
+              },
+              file_paths: {
+                type: "array",
+                items: { type: "string" },
+                description: "File paths this observation relates to"
+              },
+              tags: {
+                type: "array",
+                items: { type: "string" },
+                description: "Tags for categorization"
+              },
             },
             required: ["content"],
           },
         },
         {
           name: "recall",
-          description: "Search session memory for past learnings, decisions, or findings using natural language.",
+          description: "Search memory for past observations using natural language. Returns results ranked by semantic similarity.",
           inputSchema: {
             type: "object",
             properties: {
               query: { type: "string", description: "Natural language query to search memories" },
+              project: { type: "string", description: "Filter by project name" },
+              type: {
+                type: "string",
+                enum: OBSERVATION_TYPES,
+                description: "Filter by single observation type"
+              },
+              types: {
+                type: "array",
+                items: { type: "string", enum: OBSERVATION_TYPES },
+                description: "Filter by multiple observation types"
+              },
+              importance: {
+                type: "string",
+                enum: IMPORTANCE_LEVELS,
+                description: "Filter by importance level"
+              },
+              tags: {
+                type: "array",
+                items: { type: "string" },
+                description: "Filter by tags (matches if any tag matches)"
+              },
               session_id: { type: "string", description: "Filter to a specific session" },
-              type: { type: "string", enum: ["learning", "decision", "finding", "context"], description: "Filter by observation type" },
+              dateStart: { type: "string", description: "Filter observations after this ISO timestamp" },
+              dateEnd: { type: "string", description: "Filter observations before this ISO timestamp" },
               limit: { type: "number", description: "Maximum results to return (default: 10)" },
             },
             required: ["query"],
           },
         },
         {
+          name: "timeline",
+          description: "View observations chronologically. Useful for reviewing what happened during a session or project.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              project: { type: "string", description: "Filter by project name" },
+              types: {
+                type: "array",
+                items: { type: "string", enum: OBSERVATION_TYPES },
+                description: "Filter by observation types"
+              },
+              dateStart: { type: "string", description: "Start of time range (ISO timestamp)" },
+              dateEnd: { type: "string", description: "End of time range (ISO timestamp)" },
+              limit: { type: "number", description: "Maximum entries to return (default: 50)" },
+              orderBy: {
+                type: "string",
+                enum: ["asc", "desc"],
+                description: "Sort order by timestamp (default: desc = newest first)"
+              },
+            },
+          },
+        },
+        {
+          name: "memory_stats",
+          description: "Get statistics about stored observations: totals, counts by type, by project, by importance.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              project: { type: "string", description: "Filter stats to a specific project" },
+            },
+          },
+        },
+        {
+          name: "get_observation",
+          description: "Get a specific observation by its ID.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "The observation ID" },
+            },
+            required: ["id"],
+          },
+        },
+        {
+          name: "update_observation",
+          description: "Update an existing observation's content, title, importance, or tags.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "The observation ID to update" },
+              content: { type: "string", description: "New content (will regenerate embedding)" },
+              title: { type: "string", description: "New title" },
+              importance: {
+                type: "string",
+                enum: IMPORTANCE_LEVELS,
+                description: "New importance level"
+              },
+              tags: {
+                type: "array",
+                items: { type: "string" },
+                description: "New tags (replaces existing)"
+              },
+              file_paths: {
+                type: "array",
+                items: { type: "string" },
+                description: "New file paths (replaces existing)"
+              },
+            },
+            required: ["id"],
+          },
+        },
+        {
           name: "forget",
-          description: "Delete observations from session memory.",
+          description: "Delete observations from memory. Can delete by ID, session, project, type, or date.",
           inputSchema: {
             type: "object",
             properties: {
               observation_id: { type: "string", description: "Specific observation ID to delete" },
               session_id: { type: "string", description: "Delete all observations from a session" },
+              project: { type: "string", description: "Delete all observations from a project" },
+              type: {
+                type: "string",
+                enum: OBSERVATION_TYPES,
+                description: "Delete all observations of this type"
+              },
               before: { type: "string", description: "Delete observations before this ISO timestamp" },
             },
+          },
+        },
+        {
+          name: "related_observations",
+          description: "Get all observations that are linked to a specific code symbol.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              symbol_name: { type: "string", description: "The symbol name to find related observations for" },
+              limit: { type: "number", description: "Maximum results (default: 10)" },
+            },
+            required: ["symbol_name"],
           },
         },
       ],
@@ -141,6 +283,7 @@ export class GraphHubMCPServer {
 
       try {
         switch (name) {
+          // === Code Graph Tools ===
           case "query_graph": {
             const result = await this.db.runCypher(args?.cypher as string);
             const rows = await result.getAll();
@@ -189,7 +332,6 @@ export class GraphHubMCPServer {
           }
           case "impact_analysis": {
             const symbolName = args?.name as string;
-            // Depth-1 (direct callers) and depth-2 (their callers)
             const d1Result = await this.db.runCypher(
               'MATCH (caller:Symbol)-[:CALLS]->(s:Symbol {name: $name}) RETURN caller.name as name, caller.kind as kind',
               { name: symbolName }
@@ -216,11 +358,17 @@ export class GraphHubMCPServer {
               }],
             };
           }
+
+          // === Enhanced Memory Tools ===
           case "remember": {
             const id = await this.observations.remember(args?.content as string, {
-              type: args?.type as any,
+              type: args?.type as ObservationType,
+              title: args?.title as string,
+              project: args?.project as string,
+              importance: args?.importance as ImportanceLevel,
               session_id: args?.session_id as string,
               related_symbols: args?.related_symbols as string[],
+              file_paths: args?.file_paths as string[],
               tags: args?.tags as string[],
             });
             return {
@@ -229,22 +377,81 @@ export class GraphHubMCPServer {
           }
           case "recall": {
             const results = await this.observations.recall(args?.query as string, {
+              project: args?.project as string,
+              type: args?.type as ObservationType,
+              types: args?.types as ObservationType[],
+              importance: args?.importance as ImportanceLevel,
+              tags: args?.tags as string[],
               session_id: args?.session_id as string,
-              type: args?.type as string,
+              dateStart: args?.dateStart as string,
+              dateEnd: args?.dateEnd as string,
               limit: args?.limit as number,
             });
             return {
               content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
             };
           }
+          case "timeline": {
+            const entries = await this.observations.timeline({
+              project: args?.project as string,
+              types: args?.types as ObservationType[],
+              dateStart: args?.dateStart as string,
+              dateEnd: args?.dateEnd as string,
+              limit: args?.limit as number,
+              orderBy: args?.orderBy as 'asc' | 'desc',
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(entries, null, 2) }],
+            };
+          }
+          case "memory_stats": {
+            const stats = await this.observations.getStats(args?.project as string);
+            return {
+              content: [{ type: "text", text: JSON.stringify(stats, null, 2) }],
+            };
+          }
+          case "get_observation": {
+            const obs = await this.observations.getObservation(args?.id as string);
+            if (!obs) {
+              return {
+                content: [{ type: "text", text: JSON.stringify({ error: "Observation not found" }) }],
+              };
+            }
+            return {
+              content: [{ type: "text", text: JSON.stringify(obs, null, 2) }],
+            };
+          }
+          case "update_observation": {
+            const success = await this.observations.updateObservation(args?.id as string, {
+              content: args?.content as string,
+              title: args?.title as string,
+              importance: args?.importance as ImportanceLevel,
+              tags: args?.tags as string[],
+              file_paths: args?.file_paths as string[],
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify({ success }) }],
+            };
+          }
           case "forget": {
             await this.observations.forget({
               observation_id: args?.observation_id as string,
               session_id: args?.session_id as string,
+              project: args?.project as string,
+              type: args?.type as ObservationType,
               before: args?.before as string,
             });
             return {
-              content: [{ type: "text", text: JSON.stringify({ success: true }, null, 2) }],
+              content: [{ type: "text", text: JSON.stringify({ success: true }) }],
+            };
+          }
+          case "related_observations": {
+            const results = await this.observations.getRelatedObservations(
+              args?.symbol_name as string,
+              args?.limit as number
+            );
+            return {
+              content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
             };
           }
           default:
