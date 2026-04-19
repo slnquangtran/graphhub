@@ -9,6 +9,7 @@ import { RAGService, SearchMode } from "../ai/rag-service.ts";
 import { ObservationService, ObservationType, ImportanceLevel } from "../memory/observation-service.ts";
 import { DebugTraceService } from "../debug/trace-service.ts";
 import { BatchContextService } from "../debug/batch-context-service.ts";
+import { PatternMemoryService } from "../memory/pattern-memory-service.ts";
 
 const OBSERVATION_TYPES = ['learning', 'decision', 'finding', 'context', 'bugfix', 'feature', 'refactor', 'discovery', 'change', 'warning', 'todo'];
 const IMPORTANCE_LEVELS = ['low', 'medium', 'high', 'critical'];
@@ -20,6 +21,7 @@ export class GraphHubMCPServer {
   private observations: ObservationService;
   private debug: DebugTraceService;
   private batchContext: BatchContextService;
+  private patterns: PatternMemoryService;
 
   constructor() {
     this.db = GraphClient.getInstance();
@@ -27,6 +29,7 @@ export class GraphHubMCPServer {
     this.observations = ObservationService.getInstance();
     this.debug = DebugTraceService.getInstance();
     this.batchContext = BatchContextService.getInstance();
+    this.patterns = PatternMemoryService.getInstance();
     this.server = new Server(
       {
         name: "graphhub",
@@ -359,6 +362,65 @@ export class GraphHubMCPServer {
           },
         },
         {
+          name: "remember_bugfix",
+          description: "Record a resolved bug so future agents can reuse the fix pattern. Stores symptom, root cause, and fix as a structured observation searchable via recall_bugfix.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              symptom: { type: "string", description: "What the bug looked like (error message, failing behavior)" },
+              root_cause: { type: "string", description: "Why the bug happened (the actual defect)" },
+              fix: { type: "string", description: "What resolved it (the change made)" },
+              related_symbols: { type: "array", items: { type: "string" }, description: "Symbols involved (for graph linkage)" },
+              project: { type: "string", description: "Project scope (default: 'default')" },
+              session_id: { type: "string", description: "Optional session ID" },
+              tags: { type: "array", items: { type: "string" }, description: "Extra tags (bugfix-pattern tag is added automatically)" },
+            },
+            required: ["symptom", "root_cause", "fix"],
+          },
+        },
+        {
+          name: "recall_bugfix",
+          description: "Find past bug fixes with similar symptoms. Returns structured fix patterns (symptom/root_cause/fix) ranked by semantic similarity. Call this FIRST when debugging — a past fix may apply.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              symptom: { type: "string", description: "Current bug symptom or error message" },
+              limit: { type: "number", description: "Max results (default: 5)" },
+              project: { type: "string", description: "Project scope (default: 'default')" },
+            },
+            required: ["symptom"],
+          },
+        },
+        {
+          name: "remember_skill_choice",
+          description: "Cache which .skill.md / SKILL.md file was used for a task so similar future tasks route to the same skill without re-choosing. Record outcome to let recall_skill_choice rank successful choices higher.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              task_description: { type: "string", description: "What the agent was trying to do" },
+              skill_path: { type: "string", description: "Path to the SKILL.md or skill file that was used" },
+              outcome: { type: "string", enum: ["success", "partial", "failed"], description: "How well the skill worked (default: unknown)" },
+              project: { type: "string", description: "Project scope (default: 'default')" },
+              session_id: { type: "string", description: "Optional session ID" },
+              tags: { type: "array", items: { type: "string" }, description: "Extra tags (skill-routing tag is added automatically)" },
+            },
+            required: ["task_description", "skill_path"],
+          },
+        },
+        {
+          name: "recall_skill_choice",
+          description: "Find which skill was used for similar past tasks. Skip the skill-selection decision for common task patterns.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              task_description: { type: "string", description: "The current task description" },
+              limit: { type: "number", description: "Max results (default: 5)" },
+              project: { type: "string", description: "Project scope (default: 'default')" },
+            },
+            required: ["task_description"],
+          },
+        },
+        {
           name: "batch_context",
           description: "Get definition + caller/callee counts for multiple symbols in one call. Replaces N get_context calls when an agent needs to look up several symbols at once. Default compact mode returns only counts; pass compact=false for full neighbor lists.",
           inputSchema: {
@@ -605,6 +667,51 @@ export class GraphHubMCPServer {
             });
             return {
               content: [{ type: "text", text: JSON.stringify(result) }],
+            };
+          }
+          case "remember_bugfix": {
+            const id = await this.patterns.rememberBugfix({
+              symptom: args?.symptom as string,
+              root_cause: args?.root_cause as string,
+              fix: args?.fix as string,
+              related_symbols: args?.related_symbols as string[] | undefined,
+              project: args?.project as string | undefined,
+              session_id: args?.session_id as string | undefined,
+              tags: args?.tags as string[] | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify({ success: true, observation_id: id }) }],
+            };
+          }
+          case "recall_bugfix": {
+            const results = await this.patterns.recallBugfix(args?.symptom as string, {
+              limit: args?.limit as number | undefined,
+              project: args?.project as string | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(results) }],
+            };
+          }
+          case "remember_skill_choice": {
+            const id = await this.patterns.rememberSkillChoice({
+              task_description: args?.task_description as string,
+              skill_path: args?.skill_path as string,
+              outcome: args?.outcome as 'success' | 'partial' | 'failed' | undefined,
+              project: args?.project as string | undefined,
+              session_id: args?.session_id as string | undefined,
+              tags: args?.tags as string[] | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify({ success: true, observation_id: id }) }],
+            };
+          }
+          case "recall_skill_choice": {
+            const results = await this.patterns.recallSkillChoice(args?.task_description as string, {
+              limit: args?.limit as number | undefined,
+              project: args?.project as string | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(results) }],
             };
           }
           default:
