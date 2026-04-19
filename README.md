@@ -6,7 +6,7 @@
 
 Transform your codebase into a queryable knowledge graph. Built for Claude Code, Cursor, and MCP-compatible tools.
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/slnquangtran/graphhub/releases)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/slnquangtran/graphhub/releases)
 [![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
