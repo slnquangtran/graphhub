@@ -8,6 +8,7 @@ import { GraphClient } from "../db/graph-client.ts";
 import { RAGService, SearchMode } from "../ai/rag-service.ts";
 import { ObservationService, ObservationType, ImportanceLevel } from "../memory/observation-service.ts";
 import { DebugTraceService } from "../debug/trace-service.ts";
+import { BatchContextService } from "../debug/batch-context-service.ts";
 
 const OBSERVATION_TYPES = ['learning', 'decision', 'finding', 'context', 'bugfix', 'feature', 'refactor', 'discovery', 'change', 'warning', 'todo'];
 const IMPORTANCE_LEVELS = ['low', 'medium', 'high', 'critical'];
@@ -18,12 +19,14 @@ export class GraphHubMCPServer {
   private rag: RAGService;
   private observations: ObservationService;
   private debug: DebugTraceService;
+  private batchContext: BatchContextService;
 
   constructor() {
     this.db = GraphClient.getInstance();
     this.rag = RAGService.getInstance();
     this.observations = ObservationService.getInstance();
     this.debug = DebugTraceService.getInstance();
+    this.batchContext = BatchContextService.getInstance();
     this.server = new Server(
       {
         name: "graphhub",
@@ -355,6 +358,19 @@ export class GraphHubMCPServer {
             required: ["query"],
           },
         },
+        {
+          name: "batch_context",
+          description: "Get definition + caller/callee counts for multiple symbols in one call. Replaces N get_context calls when an agent needs to look up several symbols at once. Default compact mode returns only counts; pass compact=false for full neighbor lists.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              names: { type: "array", items: { type: "string" }, description: "List of symbol names to look up" },
+              compact: { type: "boolean", description: "If true (default), return only callers_count/callees_count. If false, include full neighbor arrays." },
+              max_neighbors: { type: "number", description: "Cap neighbors per entry when compact=false (default: 10)" },
+            },
+            required: ["names"],
+          },
+        },
       ],
     }));
 
@@ -580,6 +596,15 @@ export class GraphHubMCPServer {
             });
             return {
               content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+          }
+          case "batch_context": {
+            const result = await this.batchContext.fetch(args?.names as string[], {
+              compact: args?.compact as boolean | undefined,
+              max_neighbors: args?.max_neighbors as number | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result) }],
             };
           }
           default:
