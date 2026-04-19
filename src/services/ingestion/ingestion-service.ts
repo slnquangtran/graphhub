@@ -68,6 +68,13 @@ export class IngestionService {
     this.gitignoreCache.clear();
   }
 
+  public async isIgnored(absolutePath: string, rootDir: string): Promise<boolean> {
+    const ig = await this.loadGitignore(rootDir);
+    const rel = path.relative(rootDir, absolutePath);
+    if (!rel || rel.startsWith('..')) return true;
+    return ig.ignores(rel) || ig.ignores(rel + '/');
+  }
+
   public async initialize(): Promise<void> {
     await this.parser.initialize();
     await this.db.initializeSchema();

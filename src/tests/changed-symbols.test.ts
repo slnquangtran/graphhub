@@ -41,4 +41,13 @@ describe('ChangedSymbolsService', () => {
     expect(info.scope).toBe('working');
     expect(info.base_ref).toBeNull();
   });
+
+  it('rejects malicious since refs without running git', () => {
+    const svc = ChangedSymbolsService.getInstance();
+    const malicious = 'master; echo pwned > /tmp/pwned';
+    const info = svc.getChangedFiles({ cwd: process.cwd(), since: malicious });
+    expect(info.files).toEqual([]);
+    expect(info.base_ref).toBe(malicious);
+    expect(info.scope).toBe('since');
+  });
 });

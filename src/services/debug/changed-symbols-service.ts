@@ -1,6 +1,8 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import path from 'path';
 import { GraphClient } from '../db/graph-client.ts';
+
+const GIT_REF_RE = /^[A-Za-z0-9_./@~^\-]+$/;
 
 export interface ChangedSymbolEntry {
   symbol: string;
@@ -46,20 +48,23 @@ export class ChangedSymbolsService {
     const cwd = options.cwd ?? process.cwd();
     let scope: 'staged' | 'working' | 'since' = 'working';
     let base_ref: string | null = null;
-    let cmd: string;
+    let args: string[];
     if (options.since) {
-      cmd = `git diff --name-only ${options.since}...HEAD`;
+      if (!GIT_REF_RE.test(options.since)) {
+        return { files: [], base_ref: options.since, scope: 'since' };
+      }
+      args = ['diff', '--name-only', `${options.since}...HEAD`];
       base_ref = options.since;
       scope = 'since';
     } else if (options.staged) {
-      cmd = 'git diff --name-only --cached';
+      args = ['diff', '--name-only', '--cached'];
       scope = 'staged';
     } else {
-      cmd = 'git diff --name-only HEAD';
+      args = ['diff', '--name-only', 'HEAD'];
       scope = 'working';
     }
     try {
-      const out = execSync(cmd, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      const out = execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
       const files = out.split('\n').map((s) => s.trim()).filter(Boolean).map((p) => path.resolve(cwd, p));
       return { files, base_ref, scope };
     } catch {
@@ -101,20 +106,17 @@ export class ChangedSymbolsService {
     }
 
     if (includeCallers && entries.length > 0) {
-      const symbolNames = entries.map((e) => e.symbol);
-      const callersRes = await this.db.runCypher(
-        `UNWIND $names AS n
-         MATCH (target:Symbol {name: n})<-[:CALLS]-(caller:Symbol)<-[:CONTAINS]-(f:File)
-         RETURN n AS target_name, caller.name AS caller_name, caller.kind AS caller_kind, f.path AS caller_file
-         LIMIT $lim`,
-        { names: symbolNames, lim: maxCallers * symbolNames.length },
-      );
-      const callerRows = (await callersRes.getAll()) as Array<{ target_name: string; caller_name: string; caller_kind: string; caller_file: string }>;
+      const uniqueNames = Array.from(new Set(entries.map((e) => e.symbol)));
       const byTarget = new Map<string, Array<{ name: string; kind: string; file: string }>>();
-      for (const r of callerRows) {
-        const arr = byTarget.get(r.target_name) ?? [];
-        if (arr.length < maxCallers) arr.push({ name: r.caller_name, kind: r.caller_kind, file: r.caller_file });
-        byTarget.set(r.target_name, arr);
+      for (const name of uniqueNames) {
+        const callersRes = await this.db.runCypher(
+          `MATCH (target:Symbol {name: $name})<-[:CALLS]-(caller:Symbol)<-[:CONTAINS]-(f:File)
+           RETURN caller.name AS caller_name, caller.kind AS caller_kind, f.path AS caller_file
+           LIMIT $lim`,
+          { name, lim: maxCallers },
+        );
+        const rows = (await callersRes.getAll()) as Array<{ caller_name: string; caller_kind: string; caller_file: string }>;
+        byTarget.set(name, rows.map((r) => ({ name: r.caller_name, kind: r.caller_kind, file: r.caller_file })));
       }
       for (const e of entries) {
         e.direct_callers = byTarget.get(e.symbol) ?? [];
