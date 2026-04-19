@@ -6,6 +6,9 @@
   "directories": {
     "doc": "docs"
   },
+  "bin": {
+    "graphhub": "src/index.ts"
+  },
   "scripts": {
     "test": "vitest run",
     "index": "tsx src/index.ts index",
@@ -13,10 +16,13 @@
     "serve-api": "tsx src/index.ts serve-api",
     "visualize": "tsx src/index.ts visualize",
     "report": "tsx src/index.ts report",
+    "setup": "tsx src/index.ts setup",
+    "uninstall-all": "tsx src/index.ts uninstall-all",
     "install-claude": "tsx src/index.ts install",
     "uninstall-claude": "tsx src/index.ts uninstall",
     "docs": "tsx src/index.ts docs",
-    "dashboard": "concurrently \"npm run serve-api\" \"cd dashboard && npm run dev\""
+    "dashboard": "concurrently \"npm run serve-api\" \"cd dashboard && npm run dev\"",
+    "postinstall": "node scripts/postinstall.mjs"
   },
   "keywords": [],
   "author": "",

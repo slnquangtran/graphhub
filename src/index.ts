@@ -75,15 +75,74 @@ async function main() {
     server.listen(9000);
   } else if (command === 'install') {
     const installer = new Installer();
-    const targetDir = args[1] || process.cwd();
-    console.error('--- GraphHub Installer ---');
+    const positional = args.slice(1).filter((a) => !a.startsWith('--'));
+    const targetDir = positional[0] || process.cwd();
+    console.error('--- GraphHub Installer (Claude Code) ---');
     await installer.installForClaudeCode(targetDir);
     process.exit(0);
   } else if (command === 'uninstall') {
     const installer = new Installer();
-    const targetDir = args[1] || process.cwd();
-    console.error('--- GraphHub Uninstaller ---');
+    const positional = args.slice(1).filter((a) => !a.startsWith('--'));
+    const targetDir = positional[0] || process.cwd();
+    console.error('--- GraphHub Uninstaller (Claude Code) ---');
     await installer.uninstall(targetDir);
+    process.exit(0);
+  } else if (command === 'setup' || command === 'setup-all') {
+    const { MultiInstaller } = await import('./services/install/multi-installer.ts');
+    const installer = new MultiInstaller();
+
+    const clientFlag = args.indexOf('--client');
+    const clients = clientFlag !== -1 && args[clientFlag + 1]
+      ? args[clientFlag + 1].split(',').map((s) => s.trim()).filter(Boolean)
+      : undefined;
+    const force = args.includes('--force');
+    const list = args.includes('--list');
+    const dryRun = args.includes('--dry-run');
+
+    if (list) {
+      console.error('--- GraphHub Supported Clients ---');
+      for (const c of installer.listClients()) console.log(`  ${c.name.padEnd(14)} ${c.description}`);
+      process.exit(0);
+    }
+
+    const positional = args.slice(1).filter((a) => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--client');
+    const projectDir = positional[0] || process.cwd();
+
+    console.error('--- GraphHub Multi-Client Setup ---');
+    if (dryRun) {
+      const detections = await installer.detect({ projectDir });
+      console.log('Detected clients:');
+      for (const d of detections) console.log(`  ${d.detected ? '[x]' : '[ ]'} ${d.name}`);
+      process.exit(0);
+    }
+
+    const results = await installer.installAll({ projectDir, clients, force });
+    if (results.length === 0) {
+      console.error('No supported clients detected. Re-run with --force to install for every adapter,');
+      console.error('or with --client claude-code,opencode,gemini-cli,antigravity to pick explicitly.');
+      process.exit(0);
+    }
+    for (const r of results) {
+      const status = r.installed ? 'installed' : r.reason;
+      console.log(`  [${r.installed ? 'x' : ' '}] ${r.client.padEnd(14)} ${status}  ${r.files.join(', ')}`);
+    }
+    console.error('Done. Restart the clients above so they pick up the new MCP server.');
+    process.exit(0);
+  } else if (command === 'uninstall-all') {
+    const { MultiInstaller } = await import('./services/install/multi-installer.ts');
+    const installer = new MultiInstaller();
+    const clientFlag = args.indexOf('--client');
+    const clients = clientFlag !== -1 && args[clientFlag + 1]
+      ? args[clientFlag + 1].split(',').map((s) => s.trim()).filter(Boolean)
+      : undefined;
+    const force = args.includes('--force');
+    const positional = args.slice(1).filter((a) => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--client');
+    const projectDir = positional[0] || process.cwd();
+    console.error('--- GraphHub Multi-Client Uninstall ---');
+    const results = await installer.uninstallAll({ projectDir, clients, force });
+    for (const r of results) {
+      console.log(`  ${r.client.padEnd(14)} ${r.reason}`);
+    }
     process.exit(0);
   } else if (command === 'report') {
     const service = new IngestionService();
@@ -127,8 +186,12 @@ async function main() {
     console.error('  serve-api                Start the REST API server (port 9000)');
     console.error('  visualize [out.mermaid]  Export the graph to Mermaid format');
     console.error('  report                   Generate GRAPH_REPORT.md summary');
-    console.error('  install [dir]            Configure Claude Code integration (MCP + hooks)');
-    console.error('  uninstall [dir]          Remove GraphHub from Claude Code settings');
+    console.error('  setup [dir] [--client X,Y] [--force] [--list] [--dry-run]');
+    console.error('                           Configure every detected MCP client (claude-code, opencode,');
+    console.error('                           gemini-cli, antigravity). Use --force to install for all.');
+    console.error('  uninstall-all [dir]      Remove GraphHub from all detected MCP clients');
+    console.error('  install [dir]            Legacy: Claude Code only (includes hooks + CLAUDE.md)');
+    console.error('  uninstall [dir]          Legacy: remove Claude Code config only');
     console.error('  docs <provider>          Generate purpose/strategy docs for all functions');
     console.error('');
     console.error('Docs providers: heuristic (default, no API needed), openai, anthropic, ollama, openrouter');
