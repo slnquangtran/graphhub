@@ -101,6 +101,9 @@ get_context({ name: "validateToken" })
 // Check blast radius before editing
 impact_analysis({ name: "handleRequest" })
 
+// One-shot debugging: search + context + impact in a single call
+debug_trace({ query: "null pointer in auth middleware", top_k: 3 })
+
 // Save learnings for future sessions
 remember({ content: "Auth uses JWT middleware", type: "learning" })
 

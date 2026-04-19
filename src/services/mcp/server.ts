@@ -7,6 +7,7 @@ import {
 import { GraphClient } from "../db/graph-client.ts";
 import { RAGService } from "../ai/rag-service.ts";
 import { ObservationService, ObservationType, ImportanceLevel } from "../memory/observation-service.ts";
+import { DebugTraceService } from "../debug/trace-service.ts";
 
 const OBSERVATION_TYPES = ['learning', 'decision', 'finding', 'context', 'bugfix', 'feature', 'refactor', 'discovery', 'change', 'warning', 'todo'];
 const IMPORTANCE_LEVELS = ['low', 'medium', 'high', 'critical'];
@@ -16,11 +17,13 @@ export class GraphHubMCPServer {
   private db: GraphClient;
   private rag: RAGService;
   private observations: ObservationService;
+  private debug: DebugTraceService;
 
   constructor() {
     this.db = GraphClient.getInstance();
     this.rag = RAGService.getInstance();
     this.observations = ObservationService.getInstance();
+    this.debug = DebugTraceService.getInstance();
     this.server = new Server(
       {
         name: "graphhub",
@@ -275,6 +278,19 @@ export class GraphHubMCPServer {
             required: ["symbol_name"],
           },
         },
+        {
+          name: "debug_trace",
+          description: "One-shot debugging entry point. Given a bug description or error message, returns ranked candidate symbols enriched with callers, callees, and impact risk. Replaces the semantic_search → get_context → impact_analysis chain with a single call to save tokens.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Natural-language bug description, error message, or symptom" },
+              top_k: { type: "number", description: "How many candidate symbols to investigate (default: 3)" },
+              snippet_chars: { type: "number", description: "Max characters of code snippet per candidate (default: 200)" },
+            },
+            required: ["query"],
+          },
+        },
       ],
     }));
 
@@ -452,6 +468,15 @@ export class GraphHubMCPServer {
             );
             return {
               content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+            };
+          }
+          case "debug_trace": {
+            const result = await this.debug.trace(args?.query as string, {
+              top_k: args?.top_k as number | undefined,
+              snippet_chars: args?.snippet_chars as number | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
             };
           }
           default:
