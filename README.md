@@ -6,7 +6,8 @@
 
 Transform your codebase into a queryable knowledge graph. Built for Claude Code, Cursor, and MCP-compatible tools.
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/slnquangtran/graphhub/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/slnquangtran/Graph-Hub/releases)
+[![Stars](https://img.shields.io/github/stars/slnquangtran/Graph-Hub?style=flat-square&color=ffd700)](https://github.com/slnquangtran/Graph-Hub/stargazers)
 [![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
@@ -48,8 +49,8 @@ npx graphhub uninstall-all                       # remove graphhub from all clie
 Prefer a local clone?
 
 ```bash
-git clone https://github.com/slnquangtran/graphhub.git
-cd graphhub && npm install
+git clone https://github.com/slnquangtran/Graph-Hub.git
+cd Graph-Hub && npm install
 npm run index -- /path/to/your/project
 npm run setup -- /path/to/your/project
 ```
@@ -294,8 +295,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ```bash
 # Development setup
-git clone https://github.com/slnquangtran/graphhub.git
-cd graphhub && npm install
+git clone https://github.com/slnquangtran/Graph-Hub.git
+cd Graph-Hub && npm install
 
 # Run tests
 npm test
@@ -314,6 +315,6 @@ npm run index -- ./src
 
 **Built for AI agents that need to remember your codebase.**
 
-[Report Bug](https://github.com/slnquangtran/graphhub/issues) · [Request Feature](https://github.com/slnquangtran/graphhub/issues)
+[Report Bug](https://github.com/slnquangtran/Graph-Hub/issues) · [Request Feature](https://github.com/slnquangtran/Graph-Hub/issues)
 
 </div>
