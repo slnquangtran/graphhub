@@ -1,19 +1,24 @@
 <div align="center">
 
-# GraphHub
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=GraphHub&fontSize=72&fontColor=fff&animation=twinkling&fontAlignY=32&desc=Local-first%20code%20intelligence%20for%20AI%20agents&descAlignY=55&descSize=20" width="100%" />
 
-**Local-first code intelligence for AI agents**
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&duration=2500&pause=800&color=6C63FF&center=true&vCenter=true&multiline=false&width=600&lines=Transform+your+codebase+into+a+knowledge+graph;94%25+fewer+tokens+%E2%80%94+verified+on+real+code;One+command+installs+across+all+5+AI+agents;Persistent+memory+that+survives+session+restarts" alt="Typing SVG" />
 
-Transform your codebase into a queryable knowledge graph. Built for Claude Code, Cursor, and MCP-compatible tools.
+<br/>
 
-[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/slnquangtran/Graph-Hub/releases)
-[![Stars](https://img.shields.io/github/stars/slnquangtran/Graph-Hub?style=flat-square&color=ffd700)](https://github.com/slnquangtran/Graph-Hub/stargazers)
-[![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
-[![MCP](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
+[![Version](https://img.shields.io/badge/version-1.4.0-6C63FF?style=for-the-badge&logo=git&logoColor=white)](https://github.com/slnquangtran/Graph-Hub/releases)
+[![Stars](https://img.shields.io/github/stars/slnquangtran/Graph-Hub?style=for-the-badge&logo=github&color=ffd700&logoColor=white)](https://github.com/slnquangtran/Graph-Hub/stargazers)
+[![License](https://img.shields.io/badge/license-ISC-22c55e?style=for-the-badge)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 
-[Quick Start](#quick-start) · [Features](#features) · [Documentation](#mcp-tools) · [Token Savings](#token-savings)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![MCP](https://img.shields.io/badge/MCP-compatible-9333ea?style=for-the-badge)](https://modelcontextprotocol.io/)
+[![KuzuDB](https://img.shields.io/badge/KuzuDB-graph%20engine-f59e0b?style=for-the-badge)](https://kuzudb.com/)
+[![Tests](https://img.shields.io/badge/tests-77%20passing-22c55e?style=for-the-badge&logo=vitest&logoColor=white)](https://github.com/slnquangtran/Graph-Hub)
+
+<br/>
+
+[⚡ Quick Start](#-quick-start) · [🧠 How It Works](#-how-it-works) · [🛠 MCP Tools](#-mcp-tools) · [📊 Token Savings](#-token-savings) · [🗺 Roadmap](#-roadmap)
 
 </div>
 
@@ -21,199 +26,327 @@ Transform your codebase into a queryable knowledge graph. Built for Claude Code,
 
 ## The Problem
 
-AI coding assistants lose context between sessions. They re-read files, re-learn your codebase, and burn tokens on the same questions. **GraphHub fixes this.**
+AI coding assistants **lose context between sessions**. They re-read the same files, re-learn your codebase, and burn tokens on questions they've already answered.
 
-```
-Traditional: grep → read 5 files → 9,216 tokens
-GraphHub:    get_context("functionName") → 507 tokens (94% savings)
-```
+<div align="center">
 
-## Quick Start
+| Approach | Tokens Used | What Happens |
+|:--------:|:-----------:|:------------:|
+| Traditional | `9,216` | grep → read 5 files → hope for the best |
+| **GraphHub** | **`507`** | `get_context("functionName")` → done ✓ |
+
+**94% fewer tokens. Same answer. Every time.**
+
+</div>
+
+---
+
+## ⚡ Quick Start
 
 ```bash
-# One command — sets up every MCP client present in your project
 npm install graphhub
 ```
 
-Detects and configures Claude Code, OpenCode, Gemini CLI, Antigravity, and Kilo CLI in one pass. Or explicitly:
+> One command. GraphHub auto-detects every AI agent on your machine and writes to their **global** configs — no per-project setup, ever.
+
+<details>
+<summary><b>All setup options</b></summary>
 
 ```bash
-npx graphhub setup                               # detect + install for present clients
-npx graphhub setup --force                       # install for all 5 clients
-npx graphhub setup --client claude-code,kilo-cli # pick specific clients
-npx graphhub setup --dry-run                     # preview detection
-npx graphhub setup --list                        # list supported clients
-npx graphhub uninstall-all                       # remove graphhub from all clients
+npx graphhub setup                                # auto-detect + install present clients
+npx graphhub setup --force                        # install for all 5 clients regardless
+npx graphhub setup --client claude-code,kilo-cli  # pick specific clients
+npx graphhub setup --dry-run                      # preview what would be installed
+npx graphhub setup --list                         # list all supported clients
+npx graphhub uninstall-all                        # remove from all clients
 ```
 
-Prefer a local clone?
+</details>
+
+<details>
+<summary><b>Clone & run locally</b></summary>
 
 ```bash
 git clone https://github.com/slnquangtran/Graph-Hub.git
 cd Graph-Hub && npm install
+
 npm run index -- /path/to/your/project
 npm run setup -- /path/to/your/project
 ```
 
-That's it. Your agent now has persistent memory of your codebase.
+</details>
 
-## Features
+---
 
-### Core Intelligence
+## 🧠 How It Works
 
-| Feature | Description |
-|---------|-------------|
-| **Knowledge Graph** | Functions, classes, imports, and call relationships stored in KuzuDB |
-| **Semantic Search** | Natural language queries via local embeddings (no API costs) |
-| **Impact Analysis** | See what breaks before you edit — direct and indirect callers |
-| **Session Memory** | `remember` and `recall` persist learnings across sessions |
-| **Pattern Memory** | Recall prior bug fixes and skill routing by similarity, across sessions |
-| **One-Shot Debug** | `debug_trace` chains search → context → impact in a single call |
-| **Batch Context** | Look up callers/callees for many symbols in one round trip |
+```
+  Your Source Code
+        │
+        ▼
+  ┌─────────────────┐     ┌──────────────────┐
+  │  Tree-sitter    │────▶│  KuzuDB Graph DB │
+  │  AST Parser     │     │                  │
+  │  TS · JS · PY   │     │  File ──CONTAINS─▶ Symbol
+  └─────────────────┘     │  Symbol ──CALLS──▶ Symbol
+        │                 │  File ──IMPORTS──▶ File
+        ▼                 │  Symbol ──INHERITS▶ Symbol
+  ┌─────────────────┐     └────────┬─────────┘
+  │  Local Embeddings│             │
+  │  (MiniLM-L6-v2) │      ┌──────▼──────────┐
+  │  No API needed   │      │   MCP Server    │
+  └─────────────────┘      │   REST API :9000 │
+                            │   Dashboard :5173│
+                            └─────────────────┘
+```
 
-### Developer Experience
+<div align="center">
 
-| Feature | Description |
-|---------|-------------|
-| **One-Command Setup** | `npm install graphhub` configures all supported MCP clients globally |
-| **Multi-Client Support** | Claude Code, OpenCode, Gemini CLI, Antigravity, Kilo CLI — detected and installed to global configs |
-| **Auto-Reindex** | PostToolUse hook keeps graph fresh after commits |
-| **Always-On Context** | PreToolUse hook reminds Claude about the graph |
-| **Graph Report** | Auto-generated overview with god nodes and clusters |
+### Supported AI Agents
 
-### Integrations
+| Agent | Global Config | Status |
+|:-----:|:-------------:|:------:|
+| ![Claude](https://img.shields.io/badge/Claude_Code-D97706?style=flat-square&logo=anthropic&logoColor=white) | `~/.claude/settings.json` | ✅ Full support |
+| ![OpenCode](https://img.shields.io/badge/OpenCode-0ea5e9?style=flat-square) | `~/.config/opencode/opencode.json` | ✅ Full support |
+| ![Gemini](https://img.shields.io/badge/Gemini_CLI-4285F4?style=flat-square&logo=google&logoColor=white) | `~/.gemini/settings.json` | ✅ Full support |
+| ![Antigravity](https://img.shields.io/badge/Antigravity-7c3aed?style=flat-square) | `~/.antigravity/mcp.json` | ✅ Full support |
+| ![Kilo](https://img.shields.io/badge/Kilo_CLI-f43f5e?style=flat-square) | `~/.config/kilo/kilo.json` | ✅ Full support |
 
-| Feature | Description |
-|---------|-------------|
-| **MCP Server** | Standard Model Context Protocol for any compatible agent |
-| **REST API** | Express server on port 9000 for custom integrations |
-| **React Dashboard** | Interactive visualization at port 5173 |
-| **Mermaid Export** | Generate visual diagrams of your architecture |
+</div>
 
-## Token Savings
+---
 
-Real measurements on GraphHub's own codebase:
+## 📊 Token Savings
 
-| Task | Without | With | Savings |
-|------|---------|------|---------|
-| Find function callers | 9,216 | 507 | **94%** |
-| Impact analysis | 7,281 | 673 | **91%** |
-| List file symbols | 2,745 | 322 | **88%** |
-| Search code logic | 2,115 | 759 | **64%** |
-| Codebase overview | 2,381 | 1,389 | **42%** |
-| **Total** | **23,738** | **3,650** | **85%** |
+> Real measurements on GraphHub's own codebase — not synthetic benchmarks.
 
-**Bottom line:** 5x more tasks in the same context window.
+<div align="center">
 
-## MCP Tools
+| Task | Without GraphHub | With GraphHub | Savings |
+|:-----|:----------------:|:-------------:|:-------:|
+| Find function callers | 9,216 | 507 | 🟢 **94%** |
+| Impact analysis | 7,281 | 673 | 🟢 **91%** |
+| List file symbols | 2,745 | 322 | 🟢 **88%** |
+| Search code logic | 2,115 | 759 | 🟡 **64%** |
+| Codebase overview | 2,381 | 1,389 | 🟡 **42%** |
+| **Total** | **23,738** | **3,650** | 🚀 **85%** |
 
-When connected to Claude Code or other MCP agents:
+**Result: 5× more tasks in the same context window.**
+
+</div>
+
+---
+
+## 🛠 MCP Tools
+
+GraphHub registers **27 MCP tools** across 7 categories. Click each to expand.
+
+<details>
+<summary><b>🔍 Search & Discovery</b></summary>
 
 ```typescript
-// Find code by description
-semantic_search({ query: "authentication validation" })
+// Natural language → code
+semantic_search({ query: "authentication validation", mode: "hybrid" })
 
-// See callers and callees
+// Exact or fuzzy symbol name
+search_by_name({ name: "validateToken" })
+
+// Results grouped by file
+search_grouped({ query: "error handling middleware" })
+
+// Cosine-similar symbols
+find_similar({ name: "parseRequest", top_k: 5 })
+
+// Explain which strategy was chosen
+explain_search({ query: "jwt token refresh" })
+```
+
+</details>
+
+<details>
+<summary><b>🕸 Graph & Impact</b></summary>
+
+```typescript
+// Callers + callees of a symbol
 get_context({ name: "validateToken" })
 
-// Check blast radius before editing
+// Full blast radius before you edit
 impact_analysis({ name: "handleRequest" })
 
-// One-shot debugging: search + context + impact in a single call
-debug_trace({ query: "null pointer in auth middleware", top_k: 3 })
-
-// Bulk lookup: callers/callees counts for many symbols at once
+// Callers/callees for many symbols at once
 batch_context({ names: ["validateToken", "handleRequest", "parseBody"] })
 
-// Save learnings for future sessions
-remember({ content: "Auth uses JWT middleware", type: "learning" })
+// Symbols in git-changed files + risk buckets
+changed_symbols({ diff: "staged" })
 
-// Retrieve past learnings
+// Raw Cypher for power users
+query_graph({ cypher: "MATCH (s:Symbol)-[:CALLS]->(t) RETURN s.name, t.name LIMIT 20" })
+
+// All symbols in a file
+get_file_symbols({ path: "src/services/auth/token.ts" })
+```
+
+</details>
+
+<details>
+<summary><b>🐛 One-Shot Debugging</b></summary>
+
+```typescript
+// RAG search + context + impact + next steps in one call
+debug_trace({ query: "null pointer in auth middleware", top_k: 3 })
+```
+
+</details>
+
+<details>
+<summary><b>🧹 Code Health</b></summary>
+
+```typescript
+// Find functions/classes nobody calls — safe to delete?
+find_dead_code({ kinds: ["function", "method"] })
+
+// Find near-duplicate implementations (uses stored embeddings, no API cost)
+find_duplicates({ name: "validateToken", min_similarity: 0.85, cross_file_only: true })
+
+// Detect circular import chains and mutual-recursion call cycles
+find_cycles({ type: "both", max_length: 3 })
+```
+
+</details>
+
+<details>
+<summary><b>🧠 Session Memory</b></summary>
+
+```typescript
+// Save a learning
+remember({ content: "Auth uses JWT with 15m TTL", type: "learning", project: "myapp" })
+
+// Retrieve by similarity
 recall({ query: "how does auth work?" })
 
-// Remember a bug fix, then recall it by symptom next time
+// Chronological view
+timeline({ limit: 20, project: "myapp" })
+
+// Update or delete
+update_observation({ id: "abc-123", content: "Updated: now uses refresh tokens" })
+forget({ project: "myapp", type: "learning" })
+
+// Linked to specific symbols
+related_observations({ symbol: "validateToken" })
+```
+
+</details>
+
+<details>
+<summary><b>🔁 Pattern Memory — Bug Fixes & Skills</b></summary>
+
+```typescript
+// Store a bug fix pattern
 remember_bugfix({
   symptom: "TypeError: Cannot read property user of undefined",
   root_cause: "req.session was null on the /guest route",
   fix: "Added session guard at middleware entry",
 })
+
+// Recall by symptom similarity — even next week
 recall_bugfix({ symptom: "undefined user property on guest route" })
 
-// Cache which SKILL.md worked for a task, recall it for similar tasks
+// Cache which skill worked for a task
 remember_skill_choice({
   task_description: "rename a function safely across the repo",
-  skill_path: ".claude/skills/gitnexus/gitnexus-refactoring/SKILL.md",
+  skill_path: ".claude/skills/refactoring/SKILL.md",
   outcome: "success",
 })
+
+// Route future similar tasks to the same skill
 recall_skill_choice({ task_description: "rename a symbol in multiple files" })
-
-// Run custom Cypher queries
-query_graph({ cypher: "MATCH (s:Symbol)-[:CALLS]->(t:Symbol) RETURN s, t LIMIT 10" })
 ```
 
-## Architecture
+</details>
 
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│ Source Code │ ──▶ │  Tree-sitter │ ──▶ │ KuzuDB Graph DB │
-└─────────────┘     │    Parser    │     └────────┬────────┘
-                    └──────────────┘              │
-                           │                      │
-                    ┌──────▼──────┐      ┌───────▼───────┐
-                    │  Embeddings │      │   MCP Server  │
-                    │ (MiniLM-L6) │      │  REST API     │
-                    └─────────────┘      │  Dashboard    │
-                                         └───────────────┘
-```
+---
 
-**Graph Schema:**
-```
-File ──CONTAINS──▶ Symbol ◀──DESCRIBES── Chunk
-File ──IMPORTS───▶ File
-Symbol ──CALLS──▶ Symbol
-Symbol ──INHERITS──▶ Symbol
-Symbol ──IMPLEMENTS──▶ Symbol
-```
+## ✨ Features
 
-## Language Support
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🧩 Core Intelligence
+- **Knowledge Graph** — functions, classes, imports, call chains stored in KuzuDB
+- **Semantic Search** — natural language queries, no API costs (local MiniLM-L6-v2)
+- **Impact Analysis** — see blast radius before editing, direct + indirect callers
+- **Session Memory** — `remember` / `recall` / `forget` across sessions
+- **Pattern Memory** — recall past bug fixes and skill choices by similarity
+- **One-Shot Debug** — `debug_trace` chains search → context → impact in one call
+- **Batch Context** — callers/callees for many symbols in one round trip
+
+</td>
+<td width="50%" valign="top">
+
+### 🚀 Developer Experience
+- **One Command** — `npm install graphhub` configures all detected agents globally
+- **5 Agents** — Claude Code, OpenCode, Gemini CLI, Antigravity, Kilo CLI
+- **Auto-Reindex** — PostToolUse hook keeps graph fresh after commits
+- **Always-On** — PreToolUse hook reminds Claude about the graph before every search
+- **Graph Report** — auto-generated `GRAPH_REPORT.md` with god nodes + clusters
+- **100% Local** — all data stays in `.graphhub/`, no telemetry, no cloud
+- **React Dashboard** — interactive call graph at `:5173`
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🌐 Language Support
 
 | Language | Support | Parser |
-|----------|---------|--------|
-| TypeScript / TSX | Full | Tree-sitter AST |
-| JavaScript / JSX | Full | Tree-sitter AST |
-| Python | Full | Tree-sitter AST |
-| Go, Rust, Java | Partial | Text chunker |
-| Markdown, Shell | Full | Text chunker |
+|:--------:|:-------:|:------:|
+| TypeScript / TSX | ✅ Full | Tree-sitter AST |
+| JavaScript / JSX | ✅ Full | Tree-sitter AST |
+| Python | ✅ Full | Tree-sitter AST |
+| Go · Rust · Java | ⚡ Partial | Text chunker |
+| Markdown · Shell | ✅ Full | Text chunker |
 
-## Configuration
+---
 
-### All Clients (Recommended)
+## ⚙️ Configuration
+
+<details>
+<summary><b>Global install (recommended)</b></summary>
 
 ```bash
 npx graphhub setup
 ```
 
-Auto-detects and configures every supported client using their **global** config files, so GraphHub is available in every project without per-project setup:
+Auto-detects and writes to each agent's **global** config — no per-project setup needed.
 
 | Client | Global Config File |
-|--------|--------------------|
+|--------|-------------------|
 | Claude Code | `~/.claude/settings.json` |
 | OpenCode | `~/.config/opencode/opencode.json` |
 | Gemini CLI | `~/.gemini/settings.json` |
 | Antigravity | `~/.antigravity/mcp.json` |
 | Kilo CLI | `~/.config/kilo/kilo.json` |
 
-Existing keys are preserved — only the `graphhub` entry is added. Use `--force` to install for clients that aren't yet present. A `postinstall` hook runs the same flow after `npm install graphhub`; opt out with `GRAPHHUB_NO_INSTALL=1`, `CI=1`, or `npm_config_global=true`.
+Existing keys are preserved — only the `graphhub` entry is added or updated. Use `--force` to install for agents that aren't yet present. A `postinstall` hook runs automatically after `npm install graphhub`; opt out with `GRAPHHUB_NO_INSTALL=1`, `CI=1`, or `npm_config_global=true`.
 
-### Claude Code (legacy, Claude-only hooks + CLAUDE.md)
+</details>
+
+<details>
+<summary><b>Claude Code hooks + CLAUDE.md (legacy)</b></summary>
 
 ```bash
 npm run install-claude
 ```
 
-Adds the PreToolUse/PostToolUse hooks and updates `CLAUDE.md`. The multi-client `setup` above covers MCP config only.
+Adds PreToolUse/PostToolUse hooks and updates `CLAUDE.md`. The `setup` command above covers MCP config only.
 
-### Manual Setup
+</details>
+
+<details>
+<summary><b>Manual JSON config</b></summary>
 
 ```json
 {
@@ -227,63 +360,51 @@ Adds the PreToolUse/PostToolUse hooks and updates `CLAUDE.md`. The multi-client 
 }
 ```
 
-## Commands
+</details>
+
+---
+
+## 📋 Commands
 
 | Command | Description |
 |---------|-------------|
 | `npm run index -- <dir>` | Index a directory into the knowledge graph |
 | `npm run serve` | Start MCP server (stdio) |
-| `npm run serve-api` | Start REST API (port 9000) |
+| `npm run serve-api` | Start REST API on port 9000 |
 | `npm run dashboard` | Start API + React dashboard |
-| `npm run report` | Generate GRAPH_REPORT.md |
-| `npm run visualize` | Export to Mermaid format |
-| `npm run setup` | Configure all supported MCP clients (Claude Code, OpenCode, Gemini CLI, Antigravity) |
-| `npm run uninstall-all` | Remove graphhub entry from all clients |
-| `npm run install-claude` | Configure Claude Code hooks + CLAUDE.md (legacy, Claude-only) |
-| `npm test` | Run test suite |
+| `npm run report` | Generate `GRAPH_REPORT.md` |
+| `npm run visualize` | Export graph to Mermaid format |
+| `npm run setup` | Configure all supported MCP clients |
+| `npm run uninstall-all` | Remove GraphHub from all clients |
+| `npm run install-claude` | Configure Claude Code hooks + CLAUDE.md (legacy) |
+| `npm test` | Run 77-test suite |
 
-## Changelog
+---
 
-### v1.3.1
-- **Global install** — All client adapters now write to home-dir global configs (`~/.claude/`, `~/.gemini/`, etc.) so one `npx graphhub setup --force` covers every project without per-project setup
-- **Kilo CLI support** — Added adapter for Kilo CLI (`~/.config/kilo/kilo.json`)
-- **`graphhubDir` fix** — `npx graphhub setup` now correctly resolves the graphhub package location from `import.meta.url` instead of defaulting to `process.cwd()` (which was the user's project, causing wrong MCP server paths)
-- **Gemini CLI adapter** — Was reading/writing `<project>/.gemini/` instead of `~/.gemini/`; fixed to use home dir
-- **Windows path fix** — MCP server entry paths now always use forward slashes in JSON configs
-- **`package.json` version** — Bumped to match README
+## 🏗 Tech Stack
 
-### v1.3.0
-- **DB lifecycle fix** — MCP server, watch mode, and all CLI commands now properly release the KuzuDB file lock on exit. Concurrent tool/process conflicts are gone.
-- **`.gitignore` support** — cross-platform path normalization (fixes Windows `\` vs `/` mismatch so gitignore patterns apply correctly on all platforms)
-- **Python parser** — upgraded to full Tree-sitter AST extraction (functions, classes, calls, inheritance)
-- **Import alias resolution** — `import { foo as bar }` now stores `foo` as the specifier, fixing cross-file call graph edges for renamed imports
-- **Fuzzy symbol search** — case-insensitive (`toLower(s.name) CONTAINS query`)
-- **`forget()` safety** — requires at least one filter; calling with no args no longer silently deletes all observations
-- **MCP `get_file_symbols`** — was returning an empty object (raw DB cursor); now returns the actual rows
-- **Error resilience** — per-file parse errors during directory indexing no longer abort the entire run; `stats.errors` is now accurate
-- **API `/api/index`** — now also resolves inheritance edges (was missing `resolveInheritance()`)
-- **BigInt coercion** — KuzuDB `count()` results coerced to `Number` everywhere; `JSON.stringify` no longer throws on stats
-
-## Privacy
-
-- **100% Local** — All data stays in `.graphhub/` in your project
-- **No External APIs** — Embeddings generated locally with Xenova/transformers
-- **No Telemetry** — Zero network calls during indexing or querying
-
-## Tech Stack
+<div align="center">
 
 | Component | Technology |
-|-----------|------------|
-| Parser | web-tree-sitter (WASM) |
-| Database | KuzuDB (embedded graph) |
-| Embeddings | @xenova/transformers (all-MiniLM-L6-v2) |
-| MCP | @modelcontextprotocol/sdk |
-| API | Express.js |
-| Dashboard | React + Vite + React Flow |
+|:---------:|:----------:|
+| Parser | `web-tree-sitter` (WASM) |
+| Database | `KuzuDB` (embedded graph) |
+| Embeddings | `@xenova/transformers` · all-MiniLM-L6-v2 |
+| MCP | `@modelcontextprotocol/sdk` |
+| API | `Express.js` |
+| Dashboard | `React + Vite + React Flow` |
+| Tests | `Vitest` · 77 tests |
 
-## Roadmap
+</div>
 
-- [x] Session memory (remember/recall/forget)
+---
+
+## 🗺 Roadmap
+
+<details>
+<summary><b>Completed ✅</b></summary>
+
+- [x] Session memory (remember / recall / forget)
 - [x] Always-on PreToolUse hooks
 - [x] PostToolUse auto-reindex
 - [x] Graph report generation
@@ -294,28 +415,85 @@ Adds the PreToolUse/PostToolUse hooks and updates `CLAUDE.md`. The multi-client 
 - [x] One-command multi-client setup (Claude Code, OpenCode, Gemini CLI, Antigravity, Kilo CLI)
 - [x] Global install — writes to home-dir configs so all projects benefit without per-project setup
 - [x] `.gitignore` support (cross-platform, including Windows path normalization)
-- [x] Proper database lifecycle — `close()` releases the file lock immediately on MCP server, watch mode, and CLI exit
+- [x] Proper database lifecycle — `close()` releases the file lock on MCP server, watch mode, and CLI exit
+
+</details>
+
+**Coming next:**
+- [x] Dead code detection (`find_dead_code`)
+- [x] Duplicate function detection (`find_duplicates`)
+- [x] Circular dependency / call cycle detection (`find_cycles`)
 - [ ] Worker thread indexing for large repos
-- [ ] Native Go/Rust/Java Tree-sitter grammars
+- [ ] Native Go / Rust / Java Tree-sitter grammars
 - [ ] Community detection (Leiden algorithm)
 
-## Contributing
+---
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## 📜 Changelog
+
+<details>
+<summary><b>v1.4.0 — Code Health Tools</b></summary>
+
+- **`find_dead_code`** — Find functions, methods, and classes with zero callers. Common entry-point patterns (`main`, `init`, `onX`, `handleX`…) are filtered automatically; pass `include_entry_points: true` to see everything.
+- **`find_duplicates`** — Find near-duplicate implementations of any symbol using stored cosine embeddings. No API cost — works offline. Supports `min_similarity` threshold and `cross_file_only` filter.
+- **`find_cycles`** — Detect circular import chains and mutual-recursion call cycles up to length 3. Reports each cycle as an ordered list of file paths (import) or symbol names (call).
+- **14 new tests** — Full coverage of entry-point filtering, cycle detection, similarity threshold, and cross-file filtering.
+
+</details>
+
+<details>
+<summary><b>v1.3.1 — Global Install + Kilo CLI</b></summary>
+
+- **Global install** — All adapters now write to home-dir global configs (`~/.claude/`, `~/.gemini/`, etc.) so one `npx graphhub setup --force` covers every project without per-project setup
+- **Kilo CLI support** — New adapter for Kilo CLI (`~/.config/kilo/kilo.json`)
+- **`graphhubDir` fix** — `npx graphhub setup` now correctly resolves the package location from `import.meta.url` instead of `process.cwd()` (which pointed to the user's project, causing broken MCP server paths)
+- **Gemini CLI fix** — Was writing to `<project>/.gemini/` instead of `~/.gemini/`; fixed to use home dir
+- **Windows path fix** — MCP server entry paths now always use forward slashes in JSON configs
+
+</details>
+
+<details>
+<summary><b>v1.3.0 — Stability & Python</b></summary>
+
+- **DB lifecycle fix** — MCP server, watch mode, and all CLI commands now properly release the KuzuDB file lock on exit
+- **`.gitignore` support** — cross-platform path normalization (fixes Windows `\` vs `/` mismatch)
+- **Python parser** — upgraded to full Tree-sitter AST extraction (functions, classes, calls, inheritance)
+- **Import alias resolution** — `import { foo as bar }` now stores `foo` as the specifier, fixing cross-file call graph edges
+- **Fuzzy symbol search** — case-insensitive (`toLower(s.name) CONTAINS query`)
+- **`forget()` safety** — requires at least one filter; no longer silently deletes all observations
+- **MCP `get_file_symbols`** — fixed: was returning an empty object (raw DB cursor)
+- **Error resilience** — per-file parse errors no longer abort the entire indexing run
+- **BigInt coercion** — KuzuDB `count()` results coerced to `Number`; `JSON.stringify` no longer throws on stats
+
+</details>
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to open an issue or submit a PR.
 
 ```bash
-# Development setup
 git clone https://github.com/slnquangtran/Graph-Hub.git
 cd Graph-Hub && npm install
 
-# Run tests
-npm test
-
-# Index GraphHub itself for testing
-npm run index -- ./src
+npm test                    # run 77 tests
+npm run index -- ./src      # index GraphHub itself
 ```
 
-## License
+---
+
+## 🔒 Privacy
+
+| | |
+|--|--|
+| **100% Local** | All data stays in `.graphhub/` in your project — nothing leaves your machine |
+| **No External APIs** | Embeddings are generated locally with `@xenova/transformers` |
+| **No Telemetry** | Zero network calls during indexing or querying |
+
+---
+
+## 📄 License
 
 [ISC](LICENSE) © 2024
 
@@ -323,8 +501,12 @@ npm run index -- ./src
 
 <div align="center">
 
-**Built for AI agents that need to remember your codebase.**
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=100&section=footer" width="100%" />
 
-[Report Bug](https://github.com/slnquangtran/Graph-Hub/issues) · [Request Feature](https://github.com/slnquangtran/Graph-Hub/issues)
+**If GraphHub saves you tokens, a ⭐ star helps others find it.**
+
+[![Star on GitHub](https://img.shields.io/badge/⭐%20Star%20on%20GitHub-6C63FF?style=for-the-badge&logo=github&logoColor=white)](https://github.com/slnquangtran/Graph-Hub)
+
+[Report Bug](https://github.com/slnquangtran/Graph-Hub/issues) · [Request Feature](https://github.com/slnquangtran/Graph-Hub/issues) · [Discussions](https://github.com/slnquangtran/Graph-Hub/discussions)
 
 </div>

@@ -11,6 +11,7 @@ import { DebugTraceService } from "../debug/trace-service.ts";
 import { BatchContextService } from "../debug/batch-context-service.ts";
 import { PatternMemoryService } from "../memory/pattern-memory-service.ts";
 import { ChangedSymbolsService } from "../debug/changed-symbols-service.ts";
+import { CodeHealthService } from "../debug/code-health-service.ts";
 
 const OBSERVATION_TYPES = ['learning', 'decision', 'finding', 'context', 'bugfix', 'feature', 'refactor', 'discovery', 'change', 'warning', 'todo'];
 const IMPORTANCE_LEVELS = ['low', 'medium', 'high', 'critical'];
@@ -24,6 +25,7 @@ export class GraphHubMCPServer {
   private batchContext: BatchContextService;
   private patterns: PatternMemoryService;
   private changedSymbols: ChangedSymbolsService;
+  private codeHealth: CodeHealthService;
 
   constructor() {
     this.db = GraphClient.getInstance();
@@ -33,10 +35,11 @@ export class GraphHubMCPServer {
     this.batchContext = BatchContextService.getInstance();
     this.patterns = PatternMemoryService.getInstance();
     this.changedSymbols = ChangedSymbolsService.getInstance();
+    this.codeHealth = CodeHealthService.getInstance();
     this.server = new Server(
       {
         name: "graphhub",
-        version: "1.1.0",
+        version: "1.4.0",
       },
       {
         capabilities: {
@@ -449,6 +452,57 @@ export class GraphHubMCPServer {
             },
           },
         },
+
+        // === Code Health Tools ===
+        {
+          name: "find_dead_code",
+          description: "Find functions, methods, and classes that are never called by anything in the graph. Useful before refactors or cleanups. Common entry-point patterns (main, init, onX, handleX, etc.) are filtered out by default.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              kinds: {
+                type: "array",
+                items: { type: "string" },
+                description: "Symbol kinds to check (default: ['function', 'method', 'class'])",
+              },
+              include_entry_points: {
+                type: "boolean",
+                description: "If true, include likely entry points (main, init, onX…) in results (default: false)",
+              },
+              limit: { type: "number", description: "Maximum results (default: 50)" },
+            },
+          },
+        },
+        {
+          name: "find_duplicates",
+          description: "Find functions that are semantically similar to a given symbol — likely duplicate or near-duplicate implementations. Uses stored embeddings; no API cost.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Symbol name to find duplicates of" },
+              min_similarity: { type: "number", description: "Minimum cosine similarity to report (0–1, default: 0.85)" },
+              cross_file_only: { type: "boolean", description: "Only return duplicates in different files (default: false)" },
+              limit: { type: "number", description: "Maximum results (default: 10)" },
+            },
+            required: ["name"],
+          },
+        },
+        {
+          name: "find_cycles",
+          description: "Detect circular import chains or mutual-recursion call cycles in the codebase. Returns each cycle as an ordered list of file paths or symbol names.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              type: {
+                type: "string",
+                enum: ["import", "call", "both"],
+                description: "Which graph to scan: 'import' (file dependencies), 'call' (function calls), or 'both' (default)",
+              },
+              max_length: { type: "number", description: "Maximum cycle length to detect (2 or 3, default: 3)" },
+              limit: { type: "number", description: "Maximum cycles to return (default: 20)" },
+            },
+          },
+        },
       ],
     }));
 
@@ -695,6 +749,39 @@ export class GraphHubMCPServer {
             });
             return {
               content: [{ type: "text", text: JSON.stringify(result) }],
+            };
+          }
+
+          // === Code Health Tools ===
+          case "find_dead_code": {
+            const result = await this.codeHealth.findDeadCode({
+              kinds: args?.kinds as string[] | undefined,
+              include_entry_points: args?.include_entry_points as boolean | undefined,
+              limit: args?.limit as number | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+          }
+          case "find_duplicates": {
+            const result = await this.codeHealth.findDuplicates({
+              name: args?.name as string,
+              min_similarity: args?.min_similarity as number | undefined,
+              cross_file_only: args?.cross_file_only as boolean | undefined,
+              limit: args?.limit as number | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+          }
+          case "find_cycles": {
+            const result = await this.codeHealth.findCycles({
+              type: args?.type as 'import' | 'call' | 'both' | undefined,
+              max_length: args?.max_length as number | undefined,
+              limit: args?.limit as number | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
             };
           }
           case "remember_bugfix": {
