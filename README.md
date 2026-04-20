@@ -6,7 +6,7 @@
 
 Transform your codebase into a queryable knowledge graph. Built for Claude Code, Cursor, and MCP-compatible tools.
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/slnquangtran/Graph-Hub/releases)
+[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/slnquangtran/Graph-Hub/releases)
 [![Stars](https://img.shields.io/github/stars/slnquangtran/Graph-Hub?style=flat-square&color=ffd700)](https://github.com/slnquangtran/Graph-Hub/stargazers)
 [![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
@@ -35,12 +35,12 @@ GraphHub:    get_context("functionName") → 507 tokens (94% savings)
 npm install graphhub
 ```
 
-Detects and configures Claude Code, OpenCode, Gemini CLI, and Antigravity in one pass. Or explicitly:
+Detects and configures Claude Code, OpenCode, Gemini CLI, Antigravity, and Kilo CLI in one pass. Or explicitly:
 
 ```bash
 npx graphhub setup                               # detect + install for present clients
-npx graphhub setup --force                       # install for all 4 clients
-npx graphhub setup --client claude-code,opencode # pick specific clients
+npx graphhub setup --force                       # install for all 5 clients
+npx graphhub setup --client claude-code,kilo-cli # pick specific clients
 npx graphhub setup --dry-run                     # preview detection
 npx graphhub setup --list                        # list supported clients
 npx graphhub uninstall-all                       # remove graphhub from all clients
@@ -75,8 +75,8 @@ That's it. Your agent now has persistent memory of your codebase.
 
 | Feature | Description |
 |---------|-------------|
-| **One-Command Setup** | `npm install graphhub` configures all supported MCP clients |
-| **Multi-Client Support** | Claude Code, OpenCode, Gemini CLI, Antigravity — detected and installed together |
+| **One-Command Setup** | `npm install graphhub` configures all supported MCP clients globally |
+| **Multi-Client Support** | Claude Code, OpenCode, Gemini CLI, Antigravity, Kilo CLI — detected and installed to global configs |
 | **Auto-Reindex** | PostToolUse hook keeps graph fresh after commits |
 | **Always-On Context** | PreToolUse hook reminds Claude about the graph |
 | **Graph Report** | Auto-generated overview with god nodes and clusters |
@@ -193,14 +193,15 @@ Symbol ──IMPLEMENTS──▶ Symbol
 npx graphhub setup
 ```
 
-Auto-detects and configures every supported client present in the project:
+Auto-detects and configures every supported client using their **global** config files, so GraphHub is available in every project without per-project setup:
 
-| Client | Config File |
-|--------|-------------|
-| Claude Code | `.claude/settings.json` |
-| OpenCode | `opencode.json` |
-| Gemini CLI | `.gemini/settings.json` |
-| Antigravity | `.antigravity/mcp.json` |
+| Client | Global Config File |
+|--------|--------------------|
+| Claude Code | `~/.claude/settings.json` |
+| OpenCode | `~/.config/opencode/opencode.json` |
+| Gemini CLI | `~/.gemini/settings.json` |
+| Antigravity | `~/.antigravity/mcp.json` |
+| Kilo CLI | `~/.config/kilo/kilo.json` |
 
 Existing keys are preserved — only the `graphhub` entry is added. Use `--force` to install for clients that aren't yet present. A `postinstall` hook runs the same flow after `npm install graphhub`; opt out with `GRAPHHUB_NO_INSTALL=1`, `CI=1`, or `npm_config_global=true`.
 
@@ -243,6 +244,14 @@ Adds the PreToolUse/PostToolUse hooks and updates `CLAUDE.md`. The multi-client 
 
 ## Changelog
 
+### v1.3.1
+- **Global install** — All client adapters now write to home-dir global configs (`~/.claude/`, `~/.gemini/`, etc.) so one `npx graphhub setup --force` covers every project without per-project setup
+- **Kilo CLI support** — Added adapter for Kilo CLI (`~/.config/kilo/kilo.json`)
+- **`graphhubDir` fix** — `npx graphhub setup` now correctly resolves the graphhub package location from `import.meta.url` instead of defaulting to `process.cwd()` (which was the user's project, causing wrong MCP server paths)
+- **Gemini CLI adapter** — Was reading/writing `<project>/.gemini/` instead of `~/.gemini/`; fixed to use home dir
+- **Windows path fix** — MCP server entry paths now always use forward slashes in JSON configs
+- **`package.json` version** — Bumped to match README
+
 ### v1.3.0
 - **DB lifecycle fix** — MCP server, watch mode, and all CLI commands now properly release the KuzuDB file lock on exit. Concurrent tool/process conflicts are gone.
 - **`.gitignore` support** — cross-platform path normalization (fixes Windows `\` vs `/` mismatch so gitignore patterns apply correctly on all platforms)
@@ -282,7 +291,8 @@ Adds the PreToolUse/PostToolUse hooks and updates `CLAUDE.md`. The multi-client 
 - [x] Class hierarchy edges (INHERITS, IMPLEMENTS)
 - [x] One-shot `debug_trace` and bulk `batch_context`
 - [x] Pattern memory for bug fixes and skill routing
-- [x] One-command multi-client setup (Claude Code, OpenCode, Gemini CLI, Antigravity)
+- [x] One-command multi-client setup (Claude Code, OpenCode, Gemini CLI, Antigravity, Kilo CLI)
+- [x] Global install — writes to home-dir configs so all projects benefit without per-project setup
 - [x] `.gitignore` support (cross-platform, including Windows path normalization)
 - [x] Proper database lifecycle — `close()` releases the file lock immediately on MCP server, watch mode, and CLI exit
 - [ ] Worker thread indexing for large repos

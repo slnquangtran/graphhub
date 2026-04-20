@@ -4,10 +4,12 @@ import { ClaudeCodeAdapter } from './adapters/claude-code.ts';
 import { OpencodeAdapter } from './adapters/opencode.ts';
 import { GeminiCliAdapter } from './adapters/gemini-cli.ts';
 import { AntigravityAdapter } from './adapters/antigravity.ts';
+import { KiloCliAdapter } from './adapters/kilo-cli.ts';
 
 export interface MultiInstallOptions {
   projectDir?: string;
   graphhubDir?: string;
+  homeDir?: string;
   clients?: string[];
   force?: boolean;
 }
@@ -21,6 +23,7 @@ export class MultiInstaller {
       new OpencodeAdapter(),
       new GeminiCliAdapter(),
       new AntigravityAdapter(),
+      new KiloCliAdapter(),
     ];
   }
 
@@ -32,7 +35,7 @@ export class MultiInstaller {
     return {
       projectDir: options.projectDir ?? process.cwd(),
       graphhubDir: options.graphhubDir ?? process.cwd(),
-      home: os.homedir(),
+      home: options.homeDir ?? os.homedir(),
     };
   }
 

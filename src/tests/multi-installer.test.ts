@@ -14,44 +14,61 @@ function tmpDir(prefix: string): string {
 describe('MultiInstaller', () => {
   let projectDir: string;
   let graphhubDir: string;
+  let homeDir: string;
   let installer: MultiInstaller;
 
   beforeEach(() => {
     projectDir = tmpDir('gh-project');
     graphhubDir = tmpDir('gh-root');
+    homeDir = tmpDir('gh-home');
     installer = new MultiInstaller();
   });
 
   afterEach(() => {
     fs.rmSync(projectDir, { recursive: true, force: true });
     fs.rmSync(graphhubDir, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
   });
 
-  it('lists the four built-in clients', () => {
+  it('lists the five built-in clients', () => {
     const names = installer.listClients().map((c) => c.name).sort();
-    expect(names).toEqual(['antigravity', 'claude-code', 'gemini-cli', 'opencode']);
+    expect(names).toEqual(['antigravity', 'claude-code', 'gemini-cli', 'kilo-cli', 'opencode']);
   });
 
-  it('detects nothing in a pristine project dir', async () => {
-    const detections = await installer.detect({ projectDir });
+  it('detects nothing in a pristine home dir', async () => {
+    const detections = await installer.detect({ projectDir, homeDir });
     expect(detections.every((d) => d.detected === false)).toBe(true);
   });
 
-  it('detects Claude Code when .claude exists', async () => {
-    fs.mkdirSync(path.join(projectDir, '.claude'), { recursive: true });
-    const detections = await installer.detect({ projectDir });
+  it('detects Claude Code when ~/.claude exists', async () => {
+    fs.mkdirSync(path.join(homeDir, '.claude'), { recursive: true });
+    const detections = await installer.detect({ projectDir, homeDir });
     const claude = detections.find((d) => d.name === 'claude-code');
     expect(claude?.detected).toBe(true);
   });
 
-  it('installAll on pristine project installs nothing', async () => {
-    const results = await installer.installAll({ projectDir, graphhubDir });
+  it('detects Gemini CLI when ~/.gemini exists', async () => {
+    fs.mkdirSync(path.join(homeDir, '.gemini'), { recursive: true });
+    const detections = await installer.detect({ projectDir, homeDir });
+    const gemini = detections.find((d) => d.name === 'gemini-cli');
+    expect(gemini?.detected).toBe(true);
+  });
+
+  it('detects Kilo CLI when ~/.config/kilo exists', async () => {
+    fs.mkdirSync(path.join(homeDir, '.config', 'kilo'), { recursive: true });
+    const detections = await installer.detect({ projectDir, homeDir });
+    const kilo = detections.find((d) => d.name === 'kilo-cli');
+    expect(kilo?.detected).toBe(true);
+  });
+
+  it('installAll on pristine home installs nothing', async () => {
+    const results = await installer.installAll({ projectDir, graphhubDir, homeDir });
     expect(results).toEqual([]);
   });
 
   it('installAll with --force writes config for every adapter', async () => {
-    const results = await installer.installAll({ projectDir, graphhubDir, force: true });
-    expect(results.length).toBe(4);
+    const results = await installer.installAll({ projectDir, graphhubDir, homeDir, force: true });
+    expect(results.length).toBe(5);
     expect(results.every((r) => r.installed)).toBe(true);
   });
 
@@ -59,25 +76,58 @@ describe('MultiInstaller', () => {
     const results = await installer.installAll({
       projectDir,
       graphhubDir,
-      clients: ['claude-code', 'opencode'],
+      homeDir,
+      clients: ['claude-code', 'kilo-cli'],
     });
-    expect(results.map((r) => r.client).sort()).toEqual(['claude-code', 'opencode']);
+    expect(results.map((r) => r.client).sort()).toEqual(['claude-code', 'kilo-cli']);
+
     const claudeSettings = JSON.parse(
-      fs.readFileSync(path.join(projectDir, '.claude', 'settings.json'), 'utf-8'),
+      fs.readFileSync(path.join(homeDir, '.claude', 'settings.json'), 'utf-8'),
     );
     expect(claudeSettings.mcpServers.graphhub.command).toBe('npx');
-    const opencodeCfg = JSON.parse(
-      fs.readFileSync(path.join(projectDir, 'opencode.json'), 'utf-8'),
+
+    const kiloCfg = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.config', 'kilo', 'kilo.json'), 'utf-8'),
     );
-    expect(opencodeCfg.mcp.graphhub.type).toBe('local');
-    expect(opencodeCfg.mcp.graphhub.enabled).toBe(true);
+    expect(kiloCfg.mcp.graphhub.type).toBe('local');
+    expect(kiloCfg.mcp.graphhub.enabled).toBe(true);
+  });
+
+  it('opencode install writes to ~/.config/opencode/opencode.json', async () => {
+    const results = await installer.installAll({
+      projectDir,
+      graphhubDir,
+      homeDir,
+      clients: ['opencode'],
+    });
+    expect(results[0].installed).toBe(true);
+    const cfg = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.config', 'opencode', 'opencode.json'), 'utf-8'),
+    );
+    expect(cfg.mcp.graphhub.type).toBe('local');
+    expect(cfg.mcp.graphhub.enabled).toBe(true);
+  });
+
+  it('MCP server entry uses forward slashes even on Windows', async () => {
+    const results = await installer.installAll({
+      projectDir,
+      graphhubDir,
+      homeDir,
+      clients: ['claude-code'],
+    });
+    expect(results[0].installed).toBe(true);
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const entry = settings.mcpServers.graphhub.args[1] as string;
+    expect(entry).not.toContain('\\');
   });
 
   it('preserves unrelated keys in existing settings files', async () => {
-    const settingsPath = path.join(projectDir, '.claude', 'settings.json');
+    const settingsPath = path.join(homeDir, '.claude', 'settings.json');
     fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
     fs.writeFileSync(settingsPath, JSON.stringify({ theme: 'dark', mcpServers: { other: { command: 'x', args: [] } } }));
-    await installer.installAll({ projectDir, graphhubDir, clients: ['claude-code'] });
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
     const after = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
     expect(after.theme).toBe('dark');
     expect(after.mcpServers.other).toBeDefined();
@@ -85,18 +135,18 @@ describe('MultiInstaller', () => {
   });
 
   it('uninstallAll removes only the graphhub entry', async () => {
-    await installer.installAll({ projectDir, graphhubDir, clients: ['claude-code'] });
-    const results = await installer.uninstallAll({ projectDir, graphhubDir, clients: ['claude-code'] });
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
+    const results = await installer.uninstallAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
     expect(results[0].installed).toBe(false);
     const settings = JSON.parse(
-      fs.readFileSync(path.join(projectDir, '.claude', 'settings.json'), 'utf-8'),
+      fs.readFileSync(path.join(homeDir, '.claude', 'settings.json'), 'utf-8'),
     );
     expect(settings.mcpServers?.graphhub).toBeUndefined();
   });
 
   it('rejects an unknown client name', async () => {
     await expect(
-      installer.installAll({ projectDir, graphhubDir, clients: ['nonexistent'] }),
+      installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['nonexistent'] }),
     ).rejects.toThrow(/No adapters matched/);
   });
 });

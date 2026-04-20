@@ -13,11 +13,11 @@ export class ClaudeCodeAdapter implements ClientAdapter {
   readonly description = 'Claude Code (.claude/settings.json + hooks)';
 
   private settingsPath(ctx: InstallContext): string {
-    return path.join(ctx.projectDir, '.claude', 'settings.json');
+    return path.join(ctx.home, '.claude', 'settings.json');
   }
 
   async detect(ctx: InstallContext): Promise<boolean> {
-    return fs.existsSync(path.join(ctx.projectDir, '.claude'));
+    return fs.existsSync(path.join(ctx.home, '.claude'));
   }
 
   async install(ctx: InstallContext): Promise<InstallResult> {

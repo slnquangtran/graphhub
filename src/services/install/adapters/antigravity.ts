@@ -12,11 +12,11 @@ export class AntigravityAdapter implements ClientAdapter {
   readonly description = 'Antigravity (.antigravity/mcp.json)';
 
   private configPath(ctx: InstallContext): string {
-    return path.join(ctx.projectDir, '.antigravity', 'mcp.json');
+    return path.join(ctx.home, '.antigravity', 'mcp.json');
   }
 
   async detect(ctx: InstallContext): Promise<boolean> {
-    return fs.existsSync(path.join(ctx.projectDir, '.antigravity'));
+    return fs.existsSync(path.join(ctx.home, '.antigravity'));
   }
 
   async install(ctx: InstallContext): Promise<InstallResult> {

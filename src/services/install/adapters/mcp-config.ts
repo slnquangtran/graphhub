@@ -8,10 +8,13 @@ export interface McpServerEntry {
 }
 
 export function buildGraphhubServerEntry(graphhubDir: string): McpServerEntry {
+  // Normalize to forward slashes so configs work on all platforms and in all clients
+  const entry = path.join(graphhubDir, 'src', 'index.ts').replace(/\\/g, '/');
+  const cwd = graphhubDir.replace(/\\/g, '/');
   return {
     command: 'npx',
-    args: ['tsx', path.join(graphhubDir, 'src', 'index.ts'), 'serve'],
-    cwd: graphhubDir,
+    args: ['tsx', entry, 'serve'],
+    cwd,
   };
 }
 

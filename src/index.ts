@@ -8,6 +8,10 @@ import { ObservationService } from './services/memory/observation-service.ts';
 import { GraphClient } from './services/db/graph-client.ts';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// Always resolve graphhubDir relative to this file, regardless of where the CLI is invoked from
+const __graphhubDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 async function main() {
   const args = process.argv.slice(2);
@@ -126,16 +130,16 @@ async function main() {
 
     console.error('--- GraphHub Multi-Client Setup ---');
     if (dryRun) {
-      const detections = await installer.detect({ projectDir });
+      const detections = await installer.detect({ projectDir, graphhubDir: __graphhubDir });
       console.log('Detected clients:');
       for (const d of detections) console.log(`  ${d.detected ? '[x]' : '[ ]'} ${d.name}`);
       process.exit(0);
     }
 
-    const results = await installer.installAll({ projectDir, clients, force });
+    const results = await installer.installAll({ projectDir, graphhubDir: __graphhubDir, clients, force });
     if (results.length === 0) {
       console.error('No supported clients detected. Re-run with --force to install for every adapter,');
-      console.error('or with --client claude-code,opencode,gemini-cli,antigravity to pick explicitly.');
+      console.error('or with --client claude-code,opencode,gemini-cli,antigravity,kilo-cli to pick explicitly.');
       process.exit(0);
     }
     for (const r of results) {
@@ -160,7 +164,7 @@ async function main() {
     }
     const projectDir = positional[0] || process.cwd();
     console.error('--- GraphHub Multi-Client Uninstall ---');
-    const results = await installer.uninstallAll({ projectDir, clients, force });
+    const results = await installer.uninstallAll({ projectDir, graphhubDir: __graphhubDir, clients, force });
     for (const r of results) {
       console.log(`  ${r.client.padEnd(14)} ${r.reason}`);
     }
@@ -209,7 +213,7 @@ async function main() {
     console.error('  report                   Generate GRAPH_REPORT.md summary');
     console.error('  setup [dir] [--client X,Y] [--force] [--list] [--dry-run]');
     console.error('                           Configure every detected MCP client (claude-code, opencode,');
-    console.error('                           gemini-cli, antigravity). Use --force to install for all.');
+    console.error('                           gemini-cli, antigravity, kilo-cli). Use --force to install for all.');
     console.error('  uninstall-all [dir]      Remove GraphHub from all detected MCP clients');
     console.error('  install [dir]            Legacy: Claude Code only (includes hooks + CLAUDE.md)');
     console.error('  uninstall [dir]          Legacy: remove Claude Code config only');

@@ -12,11 +12,11 @@ export class GeminiCliAdapter implements ClientAdapter {
   readonly description = 'Gemini CLI (~/.gemini/settings.json)';
 
   private settingsPath(ctx: InstallContext): string {
-    return path.join(ctx.projectDir, '.gemini', 'settings.json');
+    return path.join(ctx.home, '.gemini', 'settings.json');
   }
 
   async detect(ctx: InstallContext): Promise<boolean> {
-    return fs.existsSync(path.join(ctx.projectDir, '.gemini'));
+    return fs.existsSync(path.join(ctx.home, '.gemini'));
   }
 
   async install(ctx: InstallContext): Promise<InstallResult> {
