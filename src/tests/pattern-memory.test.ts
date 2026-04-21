@@ -70,20 +70,20 @@ describe('PatternMemoryService', () => {
   it('remembers and recalls a skill choice by task', async () => {
     await svc.rememberSkillChoice({
       task_description: 'rename a function across the codebase safely',
-      skill_path: '.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md',
+      skill_path: '.claude/skills/graphhub/graphhub-refactoring/SKILL.md',
       outcome: 'success',
       project,
     });
     const hits = await svc.recallSkillChoice('rename symbol in multiple files', { project, limit: 3 });
     expect(hits.length).toBeGreaterThan(0);
-    expect(hits[0].skill_path).toContain('gitnexus-refactoring');
+    expect(hits[0].skill_path).toContain('graphhub-refactoring');
     expect(hits[0].outcome).toBe('success');
   });
 
   it('does not return skill choices when recalling bugfixes', async () => {
     await svc.rememberSkillChoice({
       task_description: 'debug an infinite loop',
-      skill_path: '.claude/skills/gitnexus/gitnexus-debugging/SKILL.md',
+      skill_path: '.claude/skills/graphhub/graphhub-debugging/SKILL.md',
       outcome: 'success',
       project,
     });
