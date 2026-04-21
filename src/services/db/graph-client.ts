@@ -48,6 +48,14 @@ export class GraphClient {
         throw error;
       }
     }
+
+    // Schema migrations — idempotent (errors silently ignored if column exists)
+    for (const migration of [
+      "ALTER TABLE Symbol ADD technicalDebt STRING[]",
+      "ALTER TABLE Symbol ADD status STRING",
+    ]) {
+      try { await this.runCypher(migration); } catch { /* column already present */ }
+    }
   }
 
   public async runCypher(query: string, params: Record<string, any> = {}): Promise<any> {

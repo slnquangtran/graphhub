@@ -6,6 +6,11 @@ import { CodeParser, SymbolDefinition } from './parser.ts';
 import { GraphClient } from '../db/graph-client.ts';
 import { EmbeddingService } from '../ai/embedding-service.ts';
 
+function extractBodyText(source: string, range: { start: { row: number }; end: { row: number } }): string {
+  const lines = source.split('\n');
+  return lines.slice(range.start.row, range.end.row + 1).join('\n').trim();
+}
+
 export interface IndexStats {
   indexed: number;
   skipped: number;
@@ -162,7 +167,7 @@ export class IngestionService {
       
       await this.db.runCypher(
         'MERGE (s:Symbol {id: $id}) ' +
-        'SET s.name = $name, s.kind = $kind, s.range = $range, s.calls = $calls, s.import_source = $importSource, s.import_specifiers = $importSpecifiers, s.inputs = $inputs, s.outputs = $outputs, s.extends = $extends, s.implements = $implements',
+        'SET s.name = $name, s.kind = $kind, s.range = $range, s.calls = $calls, s.import_source = $importSource, s.import_specifiers = $importSpecifiers, s.inputs = $inputs, s.outputs = $outputs, s.extends = $extends, s.implements = $implements, s.technicalDebt = $technicalDebt, s.status = $status',
         {
           id: symId,
           name: sym.name,
@@ -174,7 +179,9 @@ export class IngestionService {
           inputs: sym.inputs || [],
           outputs: sym.outputs || [],
           extends: sym.extends || '',
-          implements: sym.implements || []
+          implements: sym.implements || [],
+          technicalDebt: sym.technicalDebt || [],
+          status: sym.status || 'Done',
         }
       );
 
@@ -185,19 +192,24 @@ export class IngestionService {
       );
 
       // 4. Handle Docs & Chunks for RAG
+      // Prefer JSDoc; fall back to body text so undocumented symbols are
+      // still reachable via semantic_search (previously they were invisible).
+      let chunkText: string | null = null;
       if (sym.doc && sym.doc.trim()) {
+        chunkText = sym.doc;
+      } else if (['function', 'method', 'class'].includes(sym.kind)) {
+        const body = extractBodyText(content, sym.range);
+        if (body.length > 20) chunkText = `[body] ${body.slice(0, 600)}`;
+      }
+      if (chunkText) {
         const chunkId = `chunk:${symId}`;
-        const embedding = await this.embeddingService.generateEmbedding(sym.doc);
-        
+        const embedding = await this.embeddingService.generateEmbedding(chunkText);
         await this.db.runCypher(
-          'MERGE (c:Chunk {id: $id}) ' +
-          'SET c.text = $text, c.embedding = $embedding',
-          { id: chunkId, text: sym.doc, embedding }
+          'MERGE (c:Chunk {id: $id}) SET c.text = $text, c.embedding = $embedding',
+          { id: chunkId, text: chunkText, embedding }
         );
-
         await this.db.runCypher(
-          'MATCH (c:Chunk {id: $chunkId}), (s:Symbol {id: $symId}) ' +
-          'MERGE (c)-[:DESCRIBES]->(s)',
+          'MATCH (c:Chunk {id: $chunkId}), (s:Symbol {id: $symId}) MERGE (c)-[:DESCRIBES]->(s)',
           { chunkId, symId }
         );
       }
