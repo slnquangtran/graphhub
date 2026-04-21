@@ -12,6 +12,7 @@ import { BatchContextService } from "../debug/batch-context-service.ts";
 import { PatternMemoryService } from "../memory/pattern-memory-service.ts";
 import { ChangedSymbolsService } from "../debug/changed-symbols-service.ts";
 import { CodeHealthService } from "../debug/code-health-service.ts";
+import { DiffReviewService } from "../debug/diff-review-service.ts";
 
 const OBSERVATION_TYPES = ['learning', 'decision', 'finding', 'context', 'bugfix', 'feature', 'refactor', 'discovery', 'change', 'warning', 'todo'];
 const IMPORTANCE_LEVELS = ['low', 'medium', 'high', 'critical'];
@@ -26,6 +27,7 @@ export class GraphHubMCPServer {
   private patterns: PatternMemoryService;
   private changedSymbols: ChangedSymbolsService;
   private codeHealth: CodeHealthService;
+  private diffReview: DiffReviewService;
 
   constructor() {
     this.db = GraphClient.getInstance();
@@ -36,6 +38,7 @@ export class GraphHubMCPServer {
     this.patterns = PatternMemoryService.getInstance();
     this.changedSymbols = ChangedSymbolsService.getInstance();
     this.codeHealth = CodeHealthService.getInstance();
+    this.diffReview = DiffReviewService.getInstance();
     this.server = new Server(
       {
         name: "graphhub",
@@ -503,6 +506,59 @@ export class GraphHubMCPServer {
             },
           },
         },
+        {
+          name: "review_diff",
+          description: "Generate a structured pre-merge review of the current git diff. Returns each changed symbol with its blast radius, test coverage, and an overall risk rating (LOW/MEDIUM/HIGH/CRITICAL). Use this before committing or opening a PR.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              since: { type: "string", description: "Git ref to diff against (e.g. 'main', 'HEAD~1'). Omit to use working-tree diff." },
+              staged: { type: "boolean", description: "If true, review only staged changes ('git diff --cached')." },
+            },
+          },
+        },
+        {
+          name: "check_arch_rules",
+          description: "Enforce architecture boundary rules — detect files that import across forbidden layer boundaries. Rules can be passed inline or loaded from .graphhub/arch-rules.json.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              rules: {
+                type: "array",
+                description: "Inline rules to check.",
+                items: {
+                  type: "object",
+                  properties: {
+                    from: { type: "string", description: "Source path fragment (e.g. 'services/')" },
+                    must_not_import: { type: "string", description: "Forbidden target path fragment (e.g. 'controllers/')" },
+                    message: { type: "string", description: "Custom violation message" },
+                  },
+                  required: ["from", "must_not_import"],
+                },
+              },
+              rules_file: { type: "string", description: "Path to a JSON file containing rules array (default: .graphhub/arch-rules.json)" },
+              limit: { type: "number", description: "Max violations to return per rule (default: 50)" },
+            },
+          },
+        },
+        {
+          name: "get_test_coverage",
+          description: "Show which functions and methods in the codebase are exercised by test files. Identifies uncovered symbols so agents know where to add tests.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              file: { type: "string", description: "Filter to symbols in a specific source file (path fragment)" },
+              symbol: { type: "string", description: "Check coverage for a single symbol name" },
+              kinds: {
+                type: "array",
+                items: { type: "string" },
+                description: "Symbol kinds to check (default: ['function', 'method'])",
+              },
+              uncovered_only: { type: "boolean", description: "If true, return only symbols with no test coverage (default: false)" },
+              limit: { type: "number", description: "Maximum symbols to return (default: 200)" },
+            },
+          },
+        },
       ],
     }));
 
@@ -827,6 +883,37 @@ export class GraphHubMCPServer {
             });
             return {
               content: [{ type: "text", text: JSON.stringify(results) }],
+            };
+          }
+          case "review_diff": {
+            const report = await this.diffReview.review({
+              since: args?.since as string | undefined,
+              staged: args?.staged as boolean | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(report) }],
+            };
+          }
+          case "check_arch_rules": {
+            const result = await this.codeHealth.checkArchRules({
+              rules: args?.rules as Array<{ from: string; must_not_import: string; message?: string }> | undefined,
+              rules_file: args?.rules_file as string | undefined,
+              limit: args?.limit as number | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result) }],
+            };
+          }
+          case "get_test_coverage": {
+            const coverage = await this.codeHealth.getTestCoverage({
+              file: args?.file as string | undefined,
+              symbol: args?.symbol as string | undefined,
+              kinds: args?.kinds as string[] | undefined,
+              uncovered_only: args?.uncovered_only as boolean | undefined,
+              limit: args?.limit as number | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(coverage) }],
             };
           }
           default:
