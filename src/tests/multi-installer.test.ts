@@ -149,4 +149,111 @@ describe('MultiInstaller', () => {
       installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['nonexistent'] }),
     ).rejects.toThrow(/No adapters matched/);
   });
+
+  it('claude-code install writes PreToolUse and PostToolUse hooks', async () => {
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const pre: any[] = settings.hooks?.PreToolUse ?? [];
+    const post: any[] = settings.hooks?.PostToolUse ?? [];
+    expect(pre.some((h: any) => h.hooks.some((hk: any) => hk.command.includes('graphhub-pre-hook')))).toBe(true);
+    expect(post.some((h: any) => h.hooks.some((hk: any) => hk.command.includes('graphhub-post-hook')))).toBe(true);
+  });
+
+  it('claude-code install writes hook shell scripts to ~/.claude/', async () => {
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
+    const claudeDir = path.join(homeDir, '.claude');
+    expect(fs.existsSync(path.join(claudeDir, 'graphhub-pre-hook.sh'))).toBe(true);
+    expect(fs.existsSync(path.join(claudeDir, 'graphhub-post-hook.sh'))).toBe(true);
+  });
+
+  it('claude-code install is idempotent — does not duplicate hooks on re-run', async () => {
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const pre: any[] = settings.hooks?.PreToolUse ?? [];
+    const graphhubPre = pre.filter((h: any) => h.hooks.some((hk: any) => hk.command.includes('graphhub-pre-hook')));
+    expect(graphhubPre.length).toBe(1);
+  });
+
+  it('opencode install injects GRAPHHUB_INSTRUCTIONS into config', async () => {
+    const results = await installer.installAll({
+      projectDir,
+      graphhubDir,
+      homeDir,
+      clients: ['opencode'],
+    });
+    expect(results[0].installed).toBe(true);
+    const cfg = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.config', 'opencode', 'opencode.json'), 'utf-8'),
+    );
+    expect(cfg.instructions).toContain('graphhub-instructions');
+    expect(cfg.instructions).toContain('semantic_search');
+  });
+
+  it('opencode install is idempotent — does not duplicate instructions on re-run', async () => {
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['opencode'] });
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['opencode'] });
+    const cfg = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.config', 'opencode', 'opencode.json'), 'utf-8'),
+    );
+    const count = (cfg.instructions as string).split('graphhub-instructions').length - 1;
+    expect(count).toBe(1);
+  });
+
+  it('kilo-cli install injects GRAPHHUB_INSTRUCTIONS into config', async () => {
+    const results = await installer.installAll({
+      projectDir,
+      graphhubDir,
+      homeDir,
+      clients: ['kilo-cli'],
+    });
+    expect(results[0].installed).toBe(true);
+    const cfg = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.config', 'kilo', 'kilo.json'), 'utf-8'),
+    );
+    expect(cfg.instructions).toContain('graphhub-instructions');
+    expect(cfg.instructions).toContain('semantic_search');
+  });
+
+  it('antigravity install injects GRAPHHUB_INSTRUCTIONS into config', async () => {
+    const results = await installer.installAll({
+      projectDir,
+      graphhubDir,
+      homeDir,
+      clients: ['antigravity'],
+    });
+    expect(results[0].installed).toBe(true);
+    const cfg = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.antigravity', 'mcp.json'), 'utf-8'),
+    );
+    expect(cfg.instructions).toContain('graphhub-instructions');
+    expect(cfg.instructions).toContain('semantic_search');
+  });
+
+  it('uninstallAll removes instructions from opencode config', async () => {
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['opencode'] });
+    await installer.uninstallAll({ projectDir, graphhubDir, homeDir, clients: ['opencode'] });
+    const cfg = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.config', 'opencode', 'opencode.json'), 'utf-8'),
+    );
+    expect(cfg.instructions ?? '').not.toContain('graphhub-instructions');
+  });
+
+  it('uninstallAll removes hooks and hook scripts', async () => {
+    await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
+    await installer.uninstallAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(homeDir, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const pre: any[] = settings.hooks?.PreToolUse ?? [];
+    const post: any[] = settings.hooks?.PostToolUse ?? [];
+    expect(pre.some((h: any) => h.hooks.some((hk: any) => hk.command.includes('graphhub-pre-hook')))).toBe(false);
+    expect(post.some((h: any) => h.hooks.some((hk: any) => hk.command.includes('graphhub-post-hook')))).toBe(false);
+    expect(fs.existsSync(path.join(homeDir, '.claude', 'graphhub-pre-hook.sh'))).toBe(false);
+    expect(fs.existsSync(path.join(homeDir, '.claude', 'graphhub-post-hook.sh'))).toBe(false);
+  });
 });

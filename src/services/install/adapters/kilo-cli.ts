@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { ClientAdapter, InstallContext, InstallResult } from './types.ts';
 import { readJsonIfExists, writeJson } from './mcp-config.ts';
+import { GRAPHHUB_INSTRUCTIONS } from './shared-hooks.ts';
 
 interface KiloMcpEntry {
   type: 'local';
@@ -12,11 +13,14 @@ interface KiloMcpEntry {
 
 interface KiloConfig {
   mcp?: Record<string, KiloMcpEntry>;
+  instructions?: string;
 }
+
+const INSTRUCTIONS_MARKER = '# graphhub-instructions';
 
 export class KiloCliAdapter implements ClientAdapter {
   readonly name = 'kilo-cli';
-  readonly description = 'Kilo CLI (~/.config/kilo/kilo.json)';
+  readonly description = 'Kilo CLI (~/.config/kilo/kilo.json + instructions)';
 
   private configPath(ctx: InstallContext): string {
     return path.join(ctx.home, '.config', 'kilo', 'kilo.json');
@@ -36,6 +40,12 @@ export class KiloCliAdapter implements ClientAdapter {
       cwd: ctx.graphhubDir.replace(/\\/g, '/'),
       enabled: true,
     };
+
+    if (!config.instructions?.includes(INSTRUCTIONS_MARKER)) {
+      const existing = config.instructions ? config.instructions.trimEnd() + '\n\n' : '';
+      config.instructions = `${existing}${INSTRUCTIONS_MARKER}\n${GRAPHHUB_INSTRUCTIONS}`;
+    }
+
     writeJson(configPath, config);
     return { client: this.name, installed: true, reason: 'configured', files: [configPath] };
   }
@@ -47,6 +57,11 @@ export class KiloCliAdapter implements ClientAdapter {
     }
     const config = readJsonIfExists<KiloConfig>(configPath);
     if (config.mcp?.graphhub) delete config.mcp.graphhub;
+    if (config.instructions?.includes(INSTRUCTIONS_MARKER)) {
+      config.instructions = config.instructions
+        .replace(new RegExp(`\n*${INSTRUCTIONS_MARKER}\\n[\\s\\S]*$`), '')
+        .trimEnd() || undefined;
+    }
     writeJson(configPath, config);
     return { client: this.name, installed: false, reason: 'removed', files: [configPath] };
   }
