@@ -665,12 +665,20 @@ export class GraphHubMCPServer {
           }
           case "get_context": {
             const symbolName = args?.name as string;
+            // Include file + range on callers/callees so agents can navigate
+            // directly without a follow-up search_by_name call.
             const calleesResult = await this.db.runCypher(
-              'MATCH (s:Symbol {name: $name})-[:CALLS]->(callee:Symbol) RETURN callee.name as name, callee.kind as kind',
+              `MATCH (s:Symbol {name: $name})-[:CALLS]->(callee:Symbol)
+               OPTIONAL MATCH (f:File)-[:CONTAINS]->(callee)
+               RETURN callee.name as name, callee.kind as kind,
+                      coalesce(f.path, '') as file, callee.range as range`,
               { name: symbolName }
             );
             const callersResult = await this.db.runCypher(
-              'MATCH (caller:Symbol)-[:CALLS]->(s:Symbol {name: $name}) RETURN caller.name as name, caller.kind as kind',
+              `MATCH (caller:Symbol)-[:CALLS]->(s:Symbol {name: $name})
+               OPTIONAL MATCH (f:File)-[:CONTAINS]->(caller)
+               RETURN caller.name as name, caller.kind as kind,
+                      coalesce(f.path, '') as file, caller.range as range`,
               { name: symbolName }
             );
             const fileResult = await this.db.runCypher(
@@ -689,20 +697,26 @@ export class GraphHubMCPServer {
           }
           case "impact_analysis": {
             const symbolName = args?.name as string;
+            // Single query for direct callers — includes file + range so agents
+            // can inspect callers without a follow-up search_by_name.
             const d1Result = await this.db.runCypher(
-              'MATCH (caller:Symbol)-[:CALLS]->(s:Symbol {name: $name}) RETURN caller.name as name, caller.kind as kind',
+              `MATCH (caller:Symbol)-[:CALLS]->(s:Symbol {name: $name})
+               OPTIONAL MATCH (f:File)-[:CONTAINS]->(caller)
+               RETURN DISTINCT caller.name as name, caller.kind as kind,
+                      coalesce(f.path, '') as file, caller.range as range`,
+              { name: symbolName }
+            );
+            // Single 2-hop query replaces the N+1 loop (one query per direct caller).
+            const d2Result = await this.db.runCypher(
+              `MATCH (gc:Symbol)-[:CALLS]->(:Symbol)-[:CALLS]->(s:Symbol {name: $name})
+               WHERE gc.name <> $name
+               OPTIONAL MATCH (f:File)-[:CONTAINS]->(gc)
+               RETURN DISTINCT gc.name as name, gc.kind as kind,
+                      coalesce(f.path, '') as file, gc.range as range`,
               { name: symbolName }
             );
             const d1 = await d1Result.getAll();
-            const d2 = [];
-            for (const caller of d1) {
-              const d2Result = await this.db.runCypher(
-                'MATCH (grandCaller:Symbol)-[:CALLS]->(c:Symbol {name: $name}) RETURN grandCaller.name as name, grandCaller.kind as kind',
-                { name: caller.name }
-              );
-              d2.push(...(await d2Result.getAll()));
-            }
-            const uniqueD2 = d2.filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i);
+            const d2 = await d2Result.getAll();
             return {
               content: [{
                 type: "text",
@@ -710,7 +724,7 @@ export class GraphHubMCPServer {
                   target: symbolName,
                   risk: d1.length === 0 ? 'LOW' : d1.length <= 3 ? 'MEDIUM' : 'HIGH',
                   direct_callers: d1,
-                  indirect_callers: uniqueD2
+                  indirect_callers: d2,
                 }, null, 2)
               }],
             };

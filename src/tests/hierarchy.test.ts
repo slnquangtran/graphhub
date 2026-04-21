@@ -14,12 +14,15 @@ describe('HierarchyService', () => {
 
   it('getHierarchy returns ancestors when direction=ancestors', async () => {
     const svc = HierarchyService.getInstance();
-    const mockAncestors = [{ name: 'BaseService', kind: 'class', file: 'src/base.ts', relation: 'inherits' }];
+    // New impl runs 2 queries per direction: one for INHERITS, one for IMPLEMENTS.
+    // Return one ancestor from the INHERITS query and none from IMPLEMENTS.
     let callCount = 0;
-    vi.spyOn(svc['db'], 'runCypher').mockImplementation(async (query: string) => {
+    vi.spyOn(svc['db'], 'runCypher').mockImplementation(async () => {
       callCount++;
-      // ancestors query fires; descendants should not
-      return { getAll: async () => mockAncestors };
+      if (callCount === 1) {
+        return { getAll: async () => [{ name: 'BaseService', kind: 'class', file: 'src/base.ts' }] };
+      }
+      return { getAll: async () => [] };
     });
 
     const result = await svc.getHierarchy({ name: 'ChildService', direction: 'ancestors' });
@@ -27,23 +30,30 @@ describe('HierarchyService', () => {
     expect(result.name).toBe('ChildService');
     expect(result.ancestors).toHaveLength(1);
     expect(result.ancestors[0].name).toBe('BaseService');
+    expect(result.ancestors[0].relation).toBe('inherits');
     expect(result.descendants).toHaveLength(0);
-    expect(callCount).toBe(1); // only one query for ancestors-only
+    expect(callCount).toBe(2); // INHERITS + IMPLEMENTS for ancestors-only
   });
 
   it('getHierarchy returns descendants when direction=descendants', async () => {
     const svc = HierarchyService.getInstance();
-    const mockDescendants = [
-      { name: 'ConcreteA', kind: 'class', file: 'src/a.ts', relation: 'inherits' },
-      { name: 'ConcreteB', kind: 'class', file: 'src/b.ts', relation: 'implements' },
-    ];
-    vi.spyOn(svc['db'], 'runCypher').mockResolvedValue({ getAll: async () => mockDescendants });
+    // First query (INHERITS descendants): ConcreteA
+    // Second query (IMPLEMENTS descendants): ConcreteB
+    let callCount = 0;
+    vi.spyOn(svc['db'], 'runCypher').mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return { getAll: async () => [{ name: 'ConcreteA', kind: 'class', file: 'src/a.ts' }] };
+      }
+      return { getAll: async () => [{ name: 'ConcreteB', kind: 'class', file: 'src/b.ts' }] };
+    });
 
     const result = await svc.getHierarchy({ name: 'AbstractBase', direction: 'descendants' });
 
     expect(result.ancestors).toHaveLength(0);
     expect(result.descendants).toHaveLength(2);
     expect(result.descendants.map((d) => d.name)).toContain('ConcreteA');
+    expect(result.descendants.map((d) => d.name)).toContain('ConcreteB');
   });
 
   it('getHierarchy queries both directions by default', async () => {
@@ -55,7 +65,8 @@ describe('HierarchyService', () => {
     });
 
     await svc.getHierarchy({ name: 'MyClass' });
-    expect(callCount).toBe(2);
+    // 2 queries per direction (INHERITS + IMPLEMENTS) × 2 directions = 4
+    expect(callCount).toBe(4);
   });
 
   it('clamps depth to 1–5', async () => {
@@ -67,6 +78,8 @@ describe('HierarchyService', () => {
     });
 
     await svc.getHierarchy({ name: 'X', depth: 99, direction: 'ancestors' });
+    // Two queries for ancestors-only; both should have depth clamped to 5
     expect(capturedQueries[0]).toContain('*1..5');
+    expect(capturedQueries[1]).toContain('*1..5');
   });
 });

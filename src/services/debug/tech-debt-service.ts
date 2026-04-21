@@ -4,6 +4,7 @@ export interface TechDebtEntry {
   name: string;
   kind: string;
   file: string;
+  range: string;
   markers: string[];
   status: string;
   caller_count: number;
@@ -65,7 +66,7 @@ export class TechDebtService {
        OPTIONAL MATCH (caller:Symbol)-[:CALLS]->(s)
        WITH f, s, count(DISTINCT caller) AS caller_count
        WHERE caller_count >= ${minCallers}
-       RETURN s.name AS name, s.kind AS kind, f.path AS file,
+       RETURN s.name AS name, s.kind AS kind, f.path AS file, s.range AS range,
               s.technicalDebt AS markers, s.status AS status,
               caller_count,
               size(s.technicalDebt) * (caller_count + 1) AS risk_score
@@ -75,7 +76,7 @@ export class TechDebtService {
     );
 
     const rows = (await res.getAll()) as Array<{
-      name: string; kind: string; file: string;
+      name: string; kind: string; file: string; range: string;
       markers: string[]; status: string;
       caller_count: number; risk_score: number;
     }>;
@@ -87,6 +88,7 @@ export class TechDebtService {
         name: r.name,
         kind: r.kind,
         file: r.file,
+        range: r.range ?? '',
         markers: r.markers,
         status: r.status,
         caller_count: r.caller_count,
