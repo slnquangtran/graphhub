@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 
 export class GraphClient {
-  private static instance: GraphClient;
+  private static instance: GraphClient | undefined;
   private db: kuzu.Database;
   private conn: kuzu.Connection;
 
@@ -14,13 +14,6 @@ export class GraphClient {
     }
     this.db = new kuzu.Database(dbPath);
     this.conn = new kuzu.Connection(this.db);
-
-    // Safety net: release the file lock synchronously on any process exit so
-    // subsequent processes (CLI, watch, tests) can open the database immediately.
-    process.on('exit', () => {
-      try { if ((this as any).conn) (this as any).conn.closeSync(); } catch {}
-      try { if ((this as any).db) (this as any).db.closeSync(); } catch {}
-    });
   }
 
   public static getInstance(): GraphClient {
@@ -78,5 +71,17 @@ export class GraphClient {
     try { if ((this as any).db) await (this as any).db.close(); } catch {}
     (this as any).conn = null;
     (this as any).db = null;
+    // Reset the singleton so the next getInstance() creates a fresh, open connection
+    // instead of returning this closed instance and throwing on every runCypher call.
+    GraphClient.instance = undefined;
   }
 }
+
+// Registered once at module level so the handler never accumulates across
+// re-initializations (previously it was inside the constructor).
+process.on('exit', () => {
+  const inst = (GraphClient as any).instance as GraphClient | undefined;
+  if (!inst) return;
+  try { if ((inst as any).conn) (inst as any).conn.closeSync(); } catch {}
+  try { if ((inst as any).db) (inst as any).db.closeSync(); } catch {}
+});

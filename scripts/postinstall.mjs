@@ -35,7 +35,10 @@ const result = spawnSync('npx', ['tsx', entry, 'setup', projectDir], {
   shell: process.platform === 'win32',
 });
 
-if (result.status !== 0) {
+if (result.signal !== null) {
+  console.log('[graphhub] postinstall setup killed by signal', result.signal);
+  console.log('[graphhub] run `npx graphhub setup` manually to retry.');
+} else if (result.status !== 0) {
   console.log('[graphhub] postinstall setup exited with', result.status);
   console.log('[graphhub] run `npx graphhub setup` manually to retry.');
 }

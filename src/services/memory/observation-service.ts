@@ -220,6 +220,12 @@ export class ObservationService {
 
     cypher += ' RETURN o.id, o.session_id, o.project, o.timestamp, o.type, o.title, o.content, o.importance, o.file_paths, o.tags, o.embedding';
 
+    // Fetch at most 2000 rows. Ranking is done in JS via cosine similarity so we
+    // overfetch relative to `limit`, but a hard cap prevents unbounded memory use
+    // as the observation store grows.
+    const fetchCap = Math.min(Math.max(limit * 20, 200), 2000);
+    cypher += ` LIMIT ${fetchCap}`;
+
     const result = Object.keys(params).length > 0
       ? await this.db.runCypher(cypher, params)
       : await this.db.runCypher(cypher);
@@ -268,7 +274,7 @@ export class ObservationService {
     await this.initializeSchema();
 
     const limit = Math.max(1, Math.min(Number(options.limit || 50), 1000));
-    const orderBy = options.orderBy || 'desc';
+    const orderBy = options.orderBy === 'asc' ? 'ASC' : 'DESC';
 
     let cypher = 'MATCH (o:Observation)';
     const params: Record<string, any> = {};
@@ -296,7 +302,7 @@ export class ObservationService {
     }
 
     cypher += ' RETURN o.id, o.timestamp, o.type, o.title, o.content, o.project, o.importance';
-    cypher += ` ORDER BY o.timestamp ${orderBy.toUpperCase()}`;
+    cypher += ` ORDER BY o.timestamp ${orderBy}`;
     cypher += ` LIMIT ${limit}`;
 
     const result = Object.keys(params).length > 0

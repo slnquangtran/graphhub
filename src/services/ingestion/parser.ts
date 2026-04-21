@@ -270,10 +270,18 @@ export class CodeParser {
           break;
       }
 
+      let pushed = false;
       if (symbol) {
         symbols.push(symbol);
-        if (['function', 'method', 'class'].includes(symbol.kind)) {
+        // Only push named symbols onto the call-attribution stack. Anonymous symbols
+        // arise when the visitor re-enters an arrow_function or function_expression
+        // node that was already consumed as the value of a variable declarator (e.g.
+        // `const foo = () => {}`). Pushing them would displace `foo` on the stack,
+        // causing all calls inside the body to be attributed to the anonymous node
+        // instead of `foo` — and then lost when anonymous symbols are filtered out.
+        if (['function', 'method', 'class'].includes(symbol.kind) && symbol.name !== 'anonymous') {
           currentSymbolsStack.push(symbol);
+          pushed = true;
         }
       }
 
@@ -281,7 +289,7 @@ export class CodeParser {
         visit(node.child(i)!);
       }
 
-      if (symbol && ['function', 'method', 'class'].includes(symbol.kind)) {
+      if (pushed) {
         currentSymbolsStack.pop();
       }
     };

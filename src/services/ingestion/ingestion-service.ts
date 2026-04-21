@@ -126,6 +126,9 @@ export class IngestionService {
     let language = 'javascript';
     if (ext === 'ts') language = 'typescript';
     if (ext === 'tsx') language = 'tsx';
+    // JSX uses the TSX grammar (tree-sitter-tsx.wasm) which is a superset of JSX
+    // and handles JSX syntax correctly. The plain JS grammar does not support JSX.
+    if (ext === 'jsx') language = 'tsx';
     if (ext === 'py') language = 'python';
 
     const symbols = this.parser.parse(content, language);

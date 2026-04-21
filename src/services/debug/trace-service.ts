@@ -89,17 +89,13 @@ export class DebugTraceService {
     const callers = (await callersRes.getAll()) as Array<{ name: string; kind: string }>;
     const files = (await fileRes.getAll()) as Array<{ path: string; range: string }>;
 
-    const d2Set = new Set<string>();
-    for (const c of callers) {
-      const gcRes = await this.db.runCypher(
-        'MATCH (g:Symbol)-[:CALLS]->(t:Symbol {name: $name}) RETURN g.name as name',
-        { name: c.name }
-      );
-      const gcs = (await gcRes.getAll()) as Array<{ name: string }>;
-      for (const g of gcs) {
-        if (g.name !== name) d2Set.add(g.name);
-      }
-    }
+    // Single 2-hop query replaces the previous N+1 loop (one query per direct caller).
+    const indirectRes = await this.db.runCypher(
+      'MATCH (g:Symbol)-[:CALLS]->(:Symbol)-[:CALLS]->(s:Symbol {name: $name}) WHERE g.name <> $name RETURN DISTINCT g.name as name',
+      { name }
+    );
+    const indirects = (await indirectRes.getAll()) as Array<{ name: string }>;
+    const d2Set = new Set(indirects.map((r) => r.name));
 
     const d1 = callers.length;
     const risk: DebugCandidate['impact']['risk'] =

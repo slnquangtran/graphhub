@@ -108,12 +108,13 @@ export class ChangedSymbolsService {
     if (includeCallers && entries.length > 0) {
       const uniqueNames = Array.from(new Set(entries.map((e) => e.symbol)));
       const byTarget = new Map<string, Array<{ name: string; kind: string; file: string }>>();
+      const safeMax = Math.max(1, Math.floor(Number(maxCallers)));
       for (const name of uniqueNames) {
         const callersRes = await this.db.runCypher(
           `MATCH (target:Symbol {name: $name})<-[:CALLS]-(caller:Symbol)<-[:CONTAINS]-(f:File)
            RETURN caller.name AS caller_name, caller.kind AS caller_kind, f.path AS caller_file
-           LIMIT $lim`,
-          { name, lim: maxCallers },
+           LIMIT ${safeMax}`,
+          { name },
         );
         const rows = (await callersRes.getAll()) as Array<{ caller_name: string; caller_kind: string; caller_file: string }>;
         byTarget.set(name, rows.map((r) => ({ name: r.caller_name, kind: r.caller_kind, file: r.caller_file })));
@@ -123,7 +124,15 @@ export class ChangedSymbolsService {
       }
     }
 
-    const not_in_graph = files.filter((f) => !filesWithSymbols.has(f));
+    // Use a separate existence check so files that ARE indexed but have zero
+    // symbols (e.g. after a parse error) are not misreported as not_in_graph.
+    const fileExistRes = await this.db.runCypher(
+      'UNWIND $paths AS p MATCH (f:File {path: p}) RETURN f.path AS path',
+      { paths: files },
+    );
+    const fileExistRows = (await fileExistRes.getAll()) as Array<{ path: string }>;
+    const filesInGraph = new Set(fileExistRows.map((r) => r.path));
+    const not_in_graph = files.filter((f) => !filesInGraph.has(f));
     return { base_ref, scope, changed_files: files, entries, not_in_graph };
   }
 }

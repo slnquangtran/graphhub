@@ -70,6 +70,28 @@ describe('CodeParser', () => {
     }));
   });
 
+  it('should attribute calls inside an arrow function body to the named variable, not to anonymous', () => {
+    // Regression: the visitor re-enters the arrow_function node as a child of the
+    // lexical_declaration and previously pushed an 'anonymous' symbol onto the stack,
+    // displacing 'fetchData'. Calls inside the body were then attributed to 'anonymous'
+    // and lost when anonymous symbols were filtered out.
+    const code = `
+      const fetchData = async (url: string) => {
+        const result = await fetch(url);
+        return parseResponse(result);
+      };
+    `;
+    const symbols = parser.parse(code, 'typescript');
+
+    const fetchData = symbols.find(s => s.name === 'fetchData');
+    expect(fetchData).toBeDefined();
+    expect(fetchData?.calls).toContain('fetch');
+    expect(fetchData?.calls).toContain('parseResponse');
+
+    // No anonymous symbols should survive the filter
+    expect(symbols.find(s => s.name === 'anonymous')).toBeUndefined();
+  });
+
   it('should extract class inheritance (extends)', () => {
     const code = `
       class Animal {
