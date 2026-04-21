@@ -50,7 +50,7 @@ export class IngestionService {
     // Always ignore these directories regardless of .gitignore
     const defaultIgnores = [
       'node_modules', '.git', '.graphhub', '__pycache__', '.venv', 'venv',
-      '.env', 'env', '.claude', '.gemini', '.gitnexus',
+      '.env', 'env', '.claude', '.gemini',
       'dist', 'build', 'out', '.next', '.nuxt', 'coverage', '.cache',
       'vendor', 'target', 'bin', 'obj', '.idea', '.vscode'
     ];
