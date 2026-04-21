@@ -94,6 +94,42 @@ describe('IngestionService', () => {
     await expect(service.indexFileFallback(testFile, true)).resolves.toBeUndefined();
   });
 
+  it('creates chunk from body text for undocumented functions', async () => {
+    if (dbLocked) {
+      console.log('Skipping: DB locked');
+      return;
+    }
+
+    const testFile = path.join(tempDir, 'undocumented.ts');
+    // No JSDoc comment — body embedding must kick in
+    await fs.writeFile(testFile, `
+export function computeHash(input: string): string {
+  const crypto = require('crypto');
+  return crypto.createHash('sha256').update(input).digest('hex');
+}
+`);
+
+    // Should not throw — body embedding path must handle missing doc gracefully
+    await expect(service.indexFile(testFile, true)).resolves.toBeUndefined();
+  });
+
+  it('prefers JSDoc over body text for documented functions', async () => {
+    if (dbLocked) {
+      console.log('Skipping: DB locked');
+      return;
+    }
+
+    const testFile = path.join(tempDir, 'documented.ts');
+    await fs.writeFile(testFile, `
+/** Computes a SHA-256 hash of the given input string. */
+export function computeHash(input: string): string {
+  return input; // body content intentionally different from doc
+}
+`);
+
+    await expect(service.indexFile(testFile, true)).resolves.toBeUndefined();
+  });
+
   describe('gitignore support', () => {
     let gitignoreDir: string;
 

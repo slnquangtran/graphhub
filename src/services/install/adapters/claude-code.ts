@@ -137,10 +137,17 @@ echo "  debug_trace      — one-shot search + context + next steps"
     return `#!/bin/bash
 # GraphHub PostToolUse hook — auto-generated, do not edit manually.
 # Fires after every Bash call and reindexes the graph when a new commit lands.
+# Skipped automatically when 'graphhub watch' is running (PID file present).
 [ -d ".graphhub" ] || exit 0
 
-GRAPHHUB_DIR="${ghDir}"
 PROJECT_DIR="$(pwd -P)"
+PID_FILE="$PROJECT_DIR/.graphhub/.watch.pid"
+
+if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
+  exit 0
+fi
+
+GRAPHHUB_DIR="${ghDir}"
 STAMP_FILE="$PROJECT_DIR/.graphhub/.last_index_commit"
 
 CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null) || exit 0

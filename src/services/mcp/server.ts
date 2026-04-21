@@ -13,6 +13,8 @@ import { PatternMemoryService } from "../memory/pattern-memory-service.ts";
 import { ChangedSymbolsService } from "../debug/changed-symbols-service.ts";
 import { CodeHealthService } from "../debug/code-health-service.ts";
 import { DiffReviewService } from "../debug/diff-review-service.ts";
+import { HierarchyService } from "../debug/hierarchy-service.ts";
+import { TechDebtService } from "../debug/tech-debt-service.ts";
 
 const OBSERVATION_TYPES = ['learning', 'decision', 'finding', 'context', 'bugfix', 'feature', 'refactor', 'discovery', 'change', 'warning', 'todo'];
 const IMPORTANCE_LEVELS = ['low', 'medium', 'high', 'critical'];
@@ -28,6 +30,8 @@ export class GraphHubMCPServer {
   private changedSymbols: ChangedSymbolsService;
   private codeHealth: CodeHealthService;
   private diffReview: DiffReviewService;
+  private hierarchy: HierarchyService;
+  private techDebt: TechDebtService;
 
   constructor() {
     this.db = GraphClient.getInstance();
@@ -39,6 +43,8 @@ export class GraphHubMCPServer {
     this.changedSymbols = ChangedSymbolsService.getInstance();
     this.codeHealth = CodeHealthService.getInstance();
     this.diffReview = DiffReviewService.getInstance();
+    this.hierarchy = HierarchyService.getInstance();
+    this.techDebt = TechDebtService.getInstance();
     this.server = new Server(
       {
         name: "graphhub",
@@ -559,6 +565,33 @@ export class GraphHubMCPServer {
             },
           },
         },
+        {
+          name: "get_hierarchy",
+          description: "Explore the inheritance and interface implementation tree for a class or interface. Returns ancestors (parent classes / implemented interfaces) and descendants (subclasses / implementors). Use before modifying a base class to understand the full blast radius across the hierarchy.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Symbol name to look up (class or interface)" },
+              direction: { type: "string", enum: ["ancestors", "descendants", "both"], description: "Which direction to traverse (default: both)" },
+              depth: { type: "number", description: "Maximum traversal depth 1–5 (default: 5)" },
+            },
+            required: ["name"],
+          },
+        },
+        {
+          name: "find_tech_debt",
+          description: "Surface TODO/FIXME/HACK/OPTIMIZE markers stored in the graph during indexing. Returns symbols sorted by risk score (debt_count × caller_count) so agents tackle the highest-impact debt first.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              marker: { type: "string", enum: ["TODO", "FIXME", "HACK", "OPTIMIZE", "XXX"], description: "Filter to a specific marker type" },
+              file: { type: "string", description: "Filter to a specific file path fragment" },
+              kinds: { type: "array", items: { type: "string" }, description: "Symbol kinds to include (default: ['function','method','class'])" },
+              min_callers: { type: "number", description: "Only return symbols with at least this many callers (default: 0)" },
+              limit: { type: "number", description: "Maximum results (default: 50)" },
+            },
+          },
+        },
       ],
     }));
 
@@ -914,6 +947,28 @@ export class GraphHubMCPServer {
             });
             return {
               content: [{ type: "text", text: JSON.stringify(coverage) }],
+            };
+          }
+          case "get_hierarchy": {
+            const tree = await this.hierarchy.getHierarchy({
+              name: args?.name as string,
+              direction: args?.direction as 'ancestors' | 'descendants' | 'both' | undefined,
+              depth: args?.depth as number | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(tree) }],
+            };
+          }
+          case "find_tech_debt": {
+            const debt = await this.techDebt.findTechDebt({
+              marker: args?.marker as string | undefined,
+              file: args?.file as string | undefined,
+              kinds: args?.kinds as string[] | undefined,
+              min_callers: args?.min_callers as number | undefined,
+              limit: args?.limit as number | undefined,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(debt) }],
             };
           }
           default:

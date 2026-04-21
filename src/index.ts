@@ -57,7 +57,17 @@ async function main() {
       },
     });
     console.error(`Watching ${path.resolve(targetDir)} (Ctrl-C to stop)`);
+
+    // Write PID file so the post-hook can detect a running watcher and skip
+    // its own background reindex (avoids double-indexing on every git commit).
+    const pidFile = path.join(path.resolve(targetDir), '.graphhub', '.watch.pid');
+    try {
+      fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+      fs.writeFileSync(pidFile, String(process.pid));
+    } catch { /* non-fatal */ }
+
     const shutdown = async () => {
+      try { fs.unlinkSync(pidFile); } catch { /* already gone */ }
       await watcher.stop();
       await GraphClient.getInstance().close();
       process.exit(0);
