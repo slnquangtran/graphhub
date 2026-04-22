@@ -18,7 +18,7 @@
 
 <br/>
 
-[⚡ Quick Start](#-quick-start) · [🧠 How It Works](#-how-it-works) · [🛠 MCP Tools](#-mcp-tools) · [📊 Token Savings](#-token-savings) · [🗺 Roadmap](#-roadmap)
+[ Quick Start](#-quick-start) · [ How It Works](#-how-it-works) · [ MCP Tools](#-mcp-tools) · [ Token Savings](#-token-savings) · [ Roadmap](#-roadmap)
 
 </div>
 
