@@ -12,6 +12,19 @@ export async function startRepl(): Promise<void> {
     prompt: 'graphhub> ',
   });
 
+  let busy = false;
+  let shutdownPending = false;
+
+  const shutdown = () => {
+    console.log('');
+    if (!busy) {
+      process.exit(0);
+    } else {
+      console.error('Finishing current command, then exiting…');
+      shutdownPending = true;
+    }
+  };
+
   rl.prompt();
 
   rl.on('line', async (line) => {
@@ -55,23 +68,25 @@ export async function startRepl(): Promise<void> {
       return;
     }
 
+    if (busy) {
+      console.error('A command is already running. Please wait.');
+      return;
+    }
+
+    busy = true;
     rl.pause();
     try {
       await cmd.run(args, ctx);
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      busy = false;
+      if (shutdownPending) process.exit(0);
+      rl.resume();
+      rl.prompt();
     }
-    rl.resume();
-    rl.prompt();
   });
 
-  rl.on('close', () => {
-    console.log('');
-    process.exit(0);
-  });
-
-  process.on('SIGINT', () => {
-    console.log('');
-    rl.close();
-  });
+  rl.on('close', shutdown);
+  process.on('SIGINT', shutdown);
 }

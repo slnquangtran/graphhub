@@ -179,6 +179,7 @@ const args = isWin
   : ['tsx', path.join(GRAPHHUB_DIR, 'src', 'index.ts'), 'index', projectDir];
 const child = spawn(cmd, args, { detached: true, stdio: 'ignore', cwd: GRAPHHUB_DIR });
 child.unref();
+process.exit(0);
 `;
   }
 }

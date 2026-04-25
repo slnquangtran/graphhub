@@ -84,7 +84,8 @@ describe('MultiInstaller', () => {
     const claudeSettings = JSON.parse(
       fs.readFileSync(path.join(homeDir, '.claude', 'settings.json'), 'utf-8'),
     );
-    expect(claudeSettings.mcpServers.graphhub.command).toBe('npx');
+    const expectedCmd = process.platform === 'win32' ? 'cmd' : 'npx';
+    expect(claudeSettings.mcpServers.graphhub.command).toBe(expectedCmd);
 
     const kiloCfg = JSON.parse(
       fs.readFileSync(path.join(homeDir, '.config', 'kilo', 'kilo.json'), 'utf-8'),
@@ -161,11 +162,11 @@ describe('MultiInstaller', () => {
     expect(post.some((h: any) => h.hooks.some((hk: any) => hk.command.includes('graphhub-post-hook')))).toBe(true);
   });
 
-  it('claude-code install writes hook shell scripts to ~/.claude/', async () => {
+  it('claude-code install writes hook scripts to ~/.claude/', async () => {
     await installer.installAll({ projectDir, graphhubDir, homeDir, clients: ['claude-code'] });
     const claudeDir = path.join(homeDir, '.claude');
-    expect(fs.existsSync(path.join(claudeDir, 'graphhub-pre-hook.sh'))).toBe(true);
-    expect(fs.existsSync(path.join(claudeDir, 'graphhub-post-hook.sh'))).toBe(true);
+    expect(fs.existsSync(path.join(claudeDir, 'graphhub-pre-hook.cjs'))).toBe(true);
+    expect(fs.existsSync(path.join(claudeDir, 'graphhub-post-hook.cjs'))).toBe(true);
   });
 
   it('claude-code install is idempotent — does not duplicate hooks on re-run', async () => {
@@ -253,7 +254,7 @@ describe('MultiInstaller', () => {
     const post: any[] = settings.hooks?.PostToolUse ?? [];
     expect(pre.some((h: any) => h.hooks.some((hk: any) => hk.command.includes('graphhub-pre-hook')))).toBe(false);
     expect(post.some((h: any) => h.hooks.some((hk: any) => hk.command.includes('graphhub-post-hook')))).toBe(false);
-    expect(fs.existsSync(path.join(homeDir, '.claude', 'graphhub-pre-hook.sh'))).toBe(false);
-    expect(fs.existsSync(path.join(homeDir, '.claude', 'graphhub-post-hook.sh'))).toBe(false);
+    expect(fs.existsSync(path.join(homeDir, '.claude', 'graphhub-pre-hook.cjs'))).toBe(false);
+    expect(fs.existsSync(path.join(homeDir, '.claude', 'graphhub-post-hook.cjs'))).toBe(false);
   });
 });
