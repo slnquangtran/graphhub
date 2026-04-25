@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { ClientAdapter, InstallContext, InstallResult } from './types.ts';
 import { buildGraphhubServerEntry, readJsonIfExists, writeJson, McpServerEntry } from './mcp-config.ts';
+import { writeSlashCommands, removeSlashCommands } from './slash-commands.ts';
 
 interface ClaudeSettings {
   mcpServers?: Record<string, McpServerEntry>;
@@ -80,11 +81,12 @@ export class ClaudeCodeAdapter implements ClientAdapter {
     }
 
     writeJson(settingsPath, settings);
+    const commandFiles = writeSlashCommands(ctx);
     return {
       client: this.name,
       installed: true,
       reason: 'configured',
-      files: [settingsPath, preHookPath, postHookPath],
+      files: [settingsPath, preHookPath, postHookPath, ...commandFiles],
     };
   }
 
@@ -110,6 +112,7 @@ export class ClaudeCodeAdapter implements ClientAdapter {
     for (const p of [this.preHookPath(ctx), this.postHookPath(ctx)]) {
       try { fs.unlinkSync(p); } catch { /* already gone */ }
     }
+    removeSlashCommands(ctx);
 
     return { client: this.name, installed: false, reason: 'removed', files: [settingsPath] };
   }

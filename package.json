@@ -20,6 +20,7 @@
     "uninstall-all": "tsx src/index.ts uninstall-all",
     "install-claude": "tsx src/index.ts install",
     "uninstall-claude": "tsx src/index.ts uninstall",
+    "repl": "tsx src/index.ts repl",
     "docs": "tsx src/index.ts docs",
     "dashboard": "concurrently \"npm run serve-api\" \"cd dashboard && npm run dev\"",
     "postinstall": "node scripts/postinstall.mjs"

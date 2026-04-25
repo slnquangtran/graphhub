@@ -211,6 +211,9 @@ async function main() {
       },
     });
     process.exit(0);
+  } else if (command === 'repl') {
+    const { startRepl } = await import('./services/repl/repl.ts');
+    await startRepl();
   } else {
     console.error('Usage: tsx src/index.ts <command> [options]');
     console.error('');
@@ -221,6 +224,7 @@ async function main() {
     console.error('  serve-api                Start the REST API server (port 9000)');
     console.error('  visualize [out.mermaid]  Export the graph to Mermaid format');
     console.error('  report                   Generate GRAPH_REPORT.md summary');
+    console.error('  repl                     Interactive REPL with /find, /search, /impact and more');
     console.error('  setup [dir] [--client X,Y] [--force] [--list] [--dry-run]');
     console.error('                           Configure every detected MCP client (claude-code, opencode,');
     console.error('                           gemini-cli, antigravity, kilo-cli). Use --force to install for all.');
