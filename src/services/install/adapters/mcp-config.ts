@@ -11,11 +11,11 @@ export function buildGraphhubServerEntry(graphhubDir: string): McpServerEntry {
   // Normalize to forward slashes so configs work on all platforms and in all clients
   const entry = path.join(graphhubDir, 'src', 'index.ts').replace(/\\/g, '/');
   const cwd = graphhubDir.replace(/\\/g, '/');
-  return {
-    command: 'npx',
-    args: ['tsx', entry, 'serve'],
-    cwd,
-  };
+  // Windows CreateProcess cannot resolve .cmd batch files (npx.cmd) without cmd /c
+  if (process.platform === 'win32') {
+    return { command: 'cmd', args: ['/c', 'npx', 'tsx', entry, 'serve'], cwd };
+  }
+  return { command: 'npx', args: ['tsx', entry, 'serve'], cwd };
 }
 
 export function readJsonIfExists<T extends object>(filePath: string): T {

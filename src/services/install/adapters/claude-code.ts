@@ -21,11 +21,11 @@ export class ClaudeCodeAdapter implements ClientAdapter {
   }
 
   private preHookPath(ctx: InstallContext): string {
-    return path.join(ctx.home, '.claude', 'graphhub-pre-hook.sh');
+    return path.join(ctx.home, '.claude', 'graphhub-pre-hook.cjs');
   }
 
   private postHookPath(ctx: InstallContext): string {
-    return path.join(ctx.home, '.claude', 'graphhub-post-hook.sh');
+    return path.join(ctx.home, '.claude', 'graphhub-post-hook.cjs');
   }
 
   async detect(ctx: InstallContext): Promise<boolean> {
@@ -46,7 +46,7 @@ export class ClaudeCodeAdapter implements ClientAdapter {
     // 2. PreToolUse hook — fires before Glob/Grep/Read, reminds Claude to prefer
     //    GraphHub MCP tools over manual file search (saves ~94% tokens).
     const preHookPath = this.preHookPath(ctx);
-    fs.writeFileSync(preHookPath, this.buildPreHookScript(), { mode: 0o755 });
+    fs.writeFileSync(preHookPath, this.buildPreHookScript(ctx.graphhubDir), { mode: 0o755 });
 
     settings.hooks = settings.hooks ?? {};
     settings.hooks['PreToolUse'] = settings.hooks['PreToolUse'] ?? [];
@@ -56,7 +56,7 @@ export class ClaudeCodeAdapter implements ClientAdapter {
     if (!preExists) {
       settings.hooks['PreToolUse'].push({
         matcher: 'Glob|Grep|Read',
-        hooks: [{ type: 'command', command: `bash "${preHookPath.replace(/\\/g, '/')}"` }],
+        hooks: [{ type: 'command', command: `node "${preHookPath.replace(/\\/g, '/')}"` }],
       });
     }
 
@@ -76,7 +76,7 @@ export class ClaudeCodeAdapter implements ClientAdapter {
     if (!postExists) {
       settings.hooks['PostToolUse'].push({
         matcher: 'Bash',
-        hooks: [{ type: 'command', command: `bash "${postHookPath.replace(/\\/g, '/')}"` }],
+        hooks: [{ type: 'command', command: `node "${postHookPath.replace(/\\/g, '/')}"` }],
       });
     }
 
@@ -109,7 +109,9 @@ export class ClaudeCodeAdapter implements ClientAdapter {
 
     writeJson(settingsPath, settings);
 
-    for (const p of [this.preHookPath(ctx), this.postHookPath(ctx)]) {
+    const legacyPre = path.join(ctx.home, '.claude', 'graphhub-pre-hook.sh');
+    const legacyPost = path.join(ctx.home, '.claude', 'graphhub-post-hook.sh');
+    for (const p of [this.preHookPath(ctx), this.postHookPath(ctx), legacyPre, legacyPost]) {
       try { fs.unlinkSync(p); } catch { /* already gone */ }
     }
     removeSlashCommands(ctx);
@@ -117,54 +119,66 @@ export class ClaudeCodeAdapter implements ClientAdapter {
     return { client: this.name, installed: false, reason: 'removed', files: [settingsPath] };
   }
 
-  private buildPreHookScript(): string {
-    // Outputs a reminder Claude sees before every Glob/Grep/Read call.
-    // The message is intentionally short so it doesn't consume many tokens itself.
-    return `#!/bin/bash
-# GraphHub PreToolUse hook — auto-generated, do not edit manually.
-# Fires before Glob, Grep, and Read to remind Claude to use the knowledge graph first.
-[ -d ".graphhub" ] || exit 0
-echo "GRAPHHUB: graph index found. Use MCP tools before searching files manually:"
-echo "  semantic_search  — natural language (saves ~94% tokens vs file search)"
-echo "  search_by_name   — exact or fuzzy symbol lookup"
-echo "  get_context      — callers + callees of any function"
-echo "  impact_analysis  — blast radius before editing a symbol"
-echo "  debug_trace      — one-shot search + context + next steps"
+  private buildPreHookScript(graphhubDir: string): string {
+    const ghDir = graphhubDir.replace(/\\/g, '/');
+    // Node.js CJS — works on Windows without bash. Outputs a JSON systemMessage
+    // that Claude Code injects directly into Claude's context (not just the UI log).
+    return `#!/usr/bin/env node
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const GRAPHHUB_DIR = ${JSON.stringify(ghDir)};
+// Only remind Claude if the graph has actually been indexed
+if (!fs.existsSync(path.join(GRAPHHUB_DIR, '.graphhub', 'db'))) process.exit(0);
+process.stdout.write(JSON.stringify({
+  systemMessage: 'GRAPHHUB is available. Before using Glob/Grep/Read to search code, prefer these MCP tools (saves ~94% tokens):\\n  semantic_search  — natural language code search\\n  search_by_name   — exact or fuzzy symbol lookup\\n  get_context      — callers + callees of any function\\n  impact_analysis  — blast radius before editing a symbol\\n  debug_trace      — one-shot debug: ranked candidates with context'
+}) + '\\n');
 `;
   }
 
   private buildPostHookScript(graphhubDir: string): string {
     const ghDir = graphhubDir.replace(/\\/g, '/');
-    // Detects new git commits and triggers a background reindex so the graph
-    // stays in sync without blocking Claude.
-    return `#!/bin/bash
-# GraphHub PostToolUse hook — auto-generated, do not edit manually.
-# Fires after every Bash call and reindexes the graph when a new commit lands.
-# Skipped automatically when 'graphhub watch' is running (PID file present).
-[ -d ".graphhub" ] || exit 0
-
-PROJECT_DIR="$(pwd -P)"
-PID_FILE="$PROJECT_DIR/.graphhub/.watch.pid"
-
-if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
-  exit 0
-fi
-
-GRAPHHUB_DIR="${ghDir}"
-STAMP_FILE="$PROJECT_DIR/.graphhub/.last_index_commit"
-
-CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null) || exit 0
-
-if [ -f "$STAMP_FILE" ] && [ "$(cat "$STAMP_FILE" 2>/dev/null)" = "$CURRENT_COMMIT" ]; then
-  exit 0
-fi
-
-echo "GRAPHHUB: new commit detected — reindexing in background..."
-(
-  cd "$GRAPHHUB_DIR" && \\
-  npx tsx src/index.ts index "$PROJECT_DIR" > /dev/null 2>&1 && \\
-  echo "$CURRENT_COMMIT" > "$STAMP_FILE"
-) &
+    // Node.js CJS — works on Windows without bash. Detects new git commits and
+    // triggers a background reindex so the graph stays fresh without blocking Claude.
+    // Stamp files live inside graphhubDir so we never need to mkdir in the project dir.
+    return `#!/usr/bin/env node
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const { execSync, spawn } = require('child_process');
+const GRAPHHUB_DIR = ${JSON.stringify(ghDir)};
+// Skip if the graph has never been indexed
+if (!fs.existsSync(path.join(GRAPHHUB_DIR, '.graphhub'))) process.exit(0);
+const projectDir = process.cwd();
+// Skip if watch mode is already running in this project
+const pidFile = path.join(projectDir, '.graphhub', '.watch.pid');
+if (fs.existsSync(pidFile)) {
+  try {
+    const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim(), 10);
+    process.kill(pid, 0);
+    process.exit(0);
+  } catch { /* process gone, fall through */ }
+}
+// Check for a new commit
+let currentCommit;
+try {
+  currentCommit = execSync('git rev-parse HEAD', { cwd: projectDir, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+} catch { process.exit(0); }
+// Stamp lives in graphhubDir keyed by a hash of the project path
+const stampDir = path.join(GRAPHHUB_DIR, '.graphhub', '.stamps');
+const projectHash = Buffer.from(projectDir).toString('base64').replace(/[+/=]/g, '').slice(0, 12);
+const stampFile = path.join(stampDir, projectHash);
+if (fs.existsSync(stampFile) && fs.readFileSync(stampFile, 'utf8').trim() === currentCommit) process.exit(0);
+// Write stamp before spawning so a crash doesn't loop indefinitely
+try { fs.mkdirSync(stampDir, { recursive: true }); fs.writeFileSync(stampFile, currentCommit); } catch { /* non-fatal */ }
+process.stdout.write('GRAPHHUB: new commit detected — reindexing in background...\\n');
+const isWin = process.platform === 'win32';
+const cmd = isWin ? 'cmd' : 'npx';
+const args = isWin
+  ? ['/c', 'npx', 'tsx', path.join(GRAPHHUB_DIR, 'src', 'index.ts'), 'index', projectDir]
+  : ['tsx', path.join(GRAPHHUB_DIR, 'src', 'index.ts'), 'index', projectDir];
+const child = spawn(cmd, args, { detached: true, stdio: 'ignore', cwd: GRAPHHUB_DIR });
+child.unref();
 `;
   }
 }
